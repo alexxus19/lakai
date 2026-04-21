@@ -1,0 +1,332 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		100000000000000000000201 /* LakaiApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000101 /* LakaiApp.swift */; };
+		100000000000000000000202 /* ProjectModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000102 /* ProjectModels.swift */; };
+		100000000000000000000203 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000103 /* Theme.swift */; };
+		100000000000000000000204 /* ScheduleCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000104 /* ScheduleCalculator.swift */; };
+		100000000000000000000205 /* ProjectPersistenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000105 /* ProjectPersistenceService.swift */; };
+		100000000000000000000206 /* ProjectPackagingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000106 /* ProjectPackagingService.swift */; };
+		100000000000000000000207 /* PDFExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000107 /* PDFExportService.swift */; };
+		100000000000000000000208 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000108 /* AppState.swift */; };
+		10000000000000000000020E /* ScriptSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000010E /* ScriptSyncService.swift */; };
+		100000000000000000000209 /* ShotCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000109 /* ShotCardView.swift */; };
+		10000000000000000000020F /* ScriptTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000010F /* ScriptTextEditor.swift */; };
+		10000000000000000000020A /* OverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000010A /* OverviewView.swift */; };
+		10000000000000000000020B /* WorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000010B /* WorkspaceView.swift */; };
+		10000000000000000000020C /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000010C /* RootView.swift */; };
+		10000000000000000000020D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000010D /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		100000000000000000000014 /* Lakai.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Lakai.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		100000000000000000000101 /* LakaiApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LakaiApp.swift; sourceTree = "<group>"; };
+		100000000000000000000102 /* ProjectModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectModels.swift; sourceTree = "<group>"; };
+		100000000000000000000103 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		100000000000000000000104 /* ScheduleCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleCalculator.swift; sourceTree = "<group>"; };
+		100000000000000000000105 /* ProjectPersistenceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPersistenceService.swift; sourceTree = "<group>"; };
+		100000000000000000000106 /* ProjectPackagingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPackagingService.swift; sourceTree = "<group>"; };
+		100000000000000000000107 /* PDFExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFExportService.swift; sourceTree = "<group>"; };
+		100000000000000000000108 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		100000000000000000000109 /* ShotCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShotCardView.swift; sourceTree = "<group>"; };
+		10000000000000000000010A /* OverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewView.swift; sourceTree = "<group>"; };
+		10000000000000000000010B /* WorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceView.swift; sourceTree = "<group>"; };
+		10000000000000000000010C /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		10000000000000000000010D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		10000000000000000000010E /* ScriptSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptSyncService.swift; sourceTree = "<group>"; };
+		10000000000000000000010F /* ScriptTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptTextEditor.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		10000000000000000000000C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		100000000000000000000002 = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000004 /* Lakai */,
+				100000000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		100000000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000014 /* Lakai.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		100000000000000000000004 /* Lakai */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000101 /* LakaiApp.swift */,
+				100000000000000000000005 /* Models */,
+				100000000000000000000006 /* Services */,
+				100000000000000000000007 /* Views */,
+				100000000000000000000008 /* Components */,
+				100000000000000000000009 /* Utilities */,
+				10000000000000000000010D /* Assets.xcassets */,
+			);
+			path = Lakai;
+			sourceTree = SOURCE_ROOT;
+		};
+		100000000000000000000005 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000102 /* ProjectModels.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		100000000000000000000006 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000104 /* ScheduleCalculator.swift */,
+				10000000000000000000010E /* ScriptSyncService.swift */,
+				100000000000000000000105 /* ProjectPersistenceService.swift */,
+				100000000000000000000106 /* ProjectPackagingService.swift */,
+				100000000000000000000107 /* PDFExportService.swift */,
+				100000000000000000000108 /* AppState.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		100000000000000000000007 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				10000000000000000000010A /* OverviewView.swift */,
+				10000000000000000000010B /* WorkspaceView.swift */,
+				10000000000000000000010C /* RootView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		100000000000000000000008 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				10000000000000000000010F /* ScriptTextEditor.swift */,
+				100000000000000000000109 /* ShotCardView.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		100000000000000000000009 /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000103 /* Theme.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		10000000000000000000000A /* Lakai */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 10000000000000000000000F /* Build configuration list for PBXNativeTarget "Lakai" */;
+			buildPhases = (
+				10000000000000000000000B /* Sources */,
+				10000000000000000000000C /* Frameworks */,
+				10000000000000000000000D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Lakai;
+			productName = Lakai;
+			productReference = 100000000000000000000014 /* Lakai.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		100000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2600;
+				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+					10000000000000000000000A = {
+						CreatedOnToolsVersion = 26.3;
+					};
+				};
+			};
+			buildConfigurationList = 10000000000000000000000E /* Build configuration list for PBXProject "Lakai" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 100000000000000000000002;
+			productRefGroup = 100000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				10000000000000000000000A /* Lakai */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		10000000000000000000000D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				10000000000000000000020D /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		10000000000000000000000B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				100000000000000000000201 /* LakaiApp.swift in Sources */,
+				100000000000000000000202 /* ProjectModels.swift in Sources */,
+				100000000000000000000203 /* Theme.swift in Sources */,
+				100000000000000000000204 /* ScheduleCalculator.swift in Sources */,
+				100000000000000000000205 /* ProjectPersistenceService.swift in Sources */,
+				100000000000000000000206 /* ProjectPackagingService.swift in Sources */,
+				100000000000000000000207 /* PDFExportService.swift in Sources */,
+				100000000000000000000208 /* AppState.swift in Sources */,
+				10000000000000000000020E /* ScriptSyncService.swift in Sources */,
+				100000000000000000000209 /* ShotCardView.swift in Sources */,
+				10000000000000000000020F /* ScriptTextEditor.swift in Sources */,
+				10000000000000000000020A /* OverviewView.swift in Sources */,
+				10000000000000000000020B /* WorkspaceView.swift in Sources */,
+				10000000000000000000020C /* RootView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		100000000000000000000010 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		100000000000000000000011 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		100000000000000000000012 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Lakai;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lakai.regietool;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		100000000000000000000013 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Lakai;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lakai.regietool;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		10000000000000000000000E /* Build configuration list for PBXProject "Lakai" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				100000000000000000000010 /* Debug */,
+				100000000000000000000011 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		10000000000000000000000F /* Build configuration list for PBXNativeTarget "Lakai" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				100000000000000000000012 /* Debug */,
+				100000000000000000000013 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 100000000000000000000001 /* Project object */;
+}
