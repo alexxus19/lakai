@@ -18,6 +18,7 @@ struct OverviewView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Lakai")
                                 .font(.system(size: 34, weight: .black))
+                                .foregroundStyle(LakaiTheme.ink)
                             Text("Regie-Tool für Shotlists, Storyboards und Drehpläne.")
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundStyle(LakaiTheme.mutedInk)
@@ -30,12 +31,14 @@ struct OverviewView: View {
                                 appState.importProjectArchive()
                             }
                             .buttonStyle(.bordered)
+                            .foregroundStyle(LakaiTheme.ink)
 
                             Button("Neues Projekt") {
                                 appState.createProject()
                             }
                             .buttonStyle(.borderedProminent)
                             .tint(LakaiTheme.accent)
+                            .foregroundStyle(LakaiTheme.ink)
                         }
                     }
 

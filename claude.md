@@ -16,6 +16,33 @@ Lakai is a native macOS directing tool for creating, organizing, versioning, and
 8. Project data is stored in XML plus a project folder that contains imported images and logos.
 9. Projects can be packaged and restored as ZIP files.
 
+### PDF Table Configuration (Non-Negotiable)
+
+- PDF pages use a white background with print-first black text and gray table lines.
+- PDF rendering uses direct Core Graphics table drawing plus CoreText line wrapping.
+- Text orientation is normal left-to-right; no mirrored or flipped text output is allowed.
+- Storyboard and schedule exports both use a structured table with fixed headers and bordered cells.
+- Row height is dynamic, derived from wrapped text height and image aspect fit needs.
+- Page breaks are row-safe: a row is only placed if it fits fully; rows must never be cut at the page bottom.
+- Empty values are rendered as empty cells (no dash placeholders).
+- Storyboard table columns are: `Shot`, `Groesse`, `Beschreibung`, `Notizen`, `Storyboard`.
+- Schedule table columns are: `Shot`, `Setup`, `Start`, `Ende`, `Groesse`, `Beschreibung`, `Shot-Notizen`, `Plan-Notizen`, `Bild`.
+- The schedule `Typ` column is intentionally removed; reclaimed width is assigned to the `Bild` column.
+- Schedule rows include a fixed first `Setup` row before all other entries.
+- Pause rows render `Pause` in the `Shot` column and the full row is lightly gray tinted.
+- Image cells use aspect-fit rendering with high interpolation quality.
+- Schedule header logos (production and client) are rendered only when actual logo assets exist.
+- No placeholder border/frame is drawn for missing logos in the schedule PDF header.
+
+### Reorder Interaction (Non-Negotiable)
+
+- Reordering in shotlist and schedule is live while dragging; list order updates on hover before drop.
+- The dragged card is the only highlighted card during reorder.
+- No secondary target-card highlight is shown during reorder.
+- The schedule has a valid insertion position between the fixed `Setup` card and the first reorderable block.
+- Drag cancellation or dropping outside valid targets must always clear drag visual state.
+- Reorder interaction must be optimized for responsiveness; persistence is committed once at drag end, not on every hover move.
+
 ## Functional Requirements
 
 ### Overview
@@ -53,6 +80,7 @@ Lakai is a native macOS directing tool for creating, organizing, versioning, and
 ### Shooting Schedule Area
 - View switch uses a slider-style control.
 - Each third of the slider control is fully clickable (`Skript`, `Shotlist`, `Drehplan`), not only the text label.
+- A fixed non-reorderable `Setup` block appears at the top of every schedule with editable title and duration.
 - No new shots are created here.
 - Existing shots can be reordered independently from the shotlist.
 - Pause blocks can be inserted, named, timed, and reordered alongside shots.
@@ -156,6 +184,48 @@ Lakai is a native macOS directing tool for creating, organizing, versioning, and
 - Mode switch segments are fully clickable across the complete third-width area
 - Drag-and-drop reorder now commits on drop (instead of during every hover step) to reduce UI jitter and improve responsiveness
 - Global color system refreshed to a modern dark palette with improved text contrast
+
+### PDF Export Quality & Print Layout Refresh
+- PDF pages now render as high-contrast black-on-white table documents optimized for print and low ink usage
+- Export rows use dynamic height based on real wrapped text and image aspect ratio, avoiding clipped card text and hard truncation
+- Page breaks now happen only when a complete row fits, preventing row content from being cut at the page bottom
+- Storyboard and schedule image cells now use robust asset decoding and high-quality interpolation for reliable image embedding
+
+### Drag-and-Drop Insert Accuracy
+- Shot and schedule reorder drops now insert exactly at the visual divider position (below the hovered card)
+- The visible divider gap has been increased to make the insertion target clearer during drag operations
+
+### Readability Hardening on Dark UI
+- Controls that previously rendered dark text on dark backgrounds (for example `Übersicht` and compact date controls) now force light foreground text
+- The Lakai title on the overview and bordered header actions now use explicit high-contrast light text styling
+
+### Reorder Interaction Smoothness
+- The visual insert gap below a hovered card was increased to roughly double height, with the divider centered in the gap
+- Gap open/close transitions and drop snap animations were tuned for smoother motion and less perceived lag
+
+### PDF Header & Text Orientation Fix
+- PDF body text orientation was corrected so all table text renders in normal left-to-right direction
+- Schedule PDF headers now include production and client logos when available in the project assets
+
+### Schedule Setup Block & PDF Table Tuning
+- The schedule now always starts with a dedicated, non-draggable `Setup` block in app and PDF exports
+- In schedule PDFs, the `Typ` column was removed and its width reassigned to the image column
+- Pause entries render `Pause` in the shot column and the full pause row uses a light gray background tint
+- Empty values in schedule PDFs are rendered as empty cells (no dash placeholders)
+- Logo header rendering in schedule PDFs no longer draws placeholder borders around logo slots
+
+### Reorder Performance & Drag UX Hardening
+- Shotlist and schedule reorder now use lighter hover-state updates to reduce jitter and improve drag responsiveness
+- The old divider-line insertion marker was replaced by gap-based insertion with card highlight outlines
+- Schedule reorder now includes a dedicated insertion zone between the fixed `Setup` block and the first reorderable block
+- Drag state is reset robustly on mouse-up to avoid cards remaining in a stale dragged visual state after cancelled/outside drops
+- Section headers and shot size selector controls were hardened to explicit high-contrast light text on dark surfaces
+
+### Live Reorder Interaction (Current Pass)
+- Reordering now commits live on hover while dragging, so list order updates continuously before drop
+- The dragged card is the only highlighted element; secondary target-card highlighting was removed
+- Drop finalization now only clears drag state (no extra reorder on drop), preventing duplicate movement at release
+- Reorder writes are now deferred: list movement is in-memory during drag, then persisted once when drag ends
 
 ## Acceptance Baseline
 

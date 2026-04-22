@@ -7,13 +7,16 @@ struct WorkspaceView: View {
     private let scriptSync = ScriptSyncService()
     @State private var draggedShotID: UUID?
     @State private var draggedScheduleBlockID: UUID?
-    @State private var hoveredDropTargetID: UUID?
-    @State private var hoveredScheduleDropTargetID: UUID?
+    @State private var localMouseUpMonitor: Any?
+    @State private var globalMouseUpMonitor: Any?
     @State private var scheduleSetupDrafts: [UUID: String] = [:]
     @State private var scheduleDurationDrafts: [UUID: String] = [:]
     @State private var pauseDurationDrafts: [UUID: String] = [:]
+    @State private var setupDurationDraft: String = ""
     @State private var isShootDatePickerPresented = false
     @State private var isShootTimePickerPresented = false
+
+    private let dropGapHeight: CGFloat = 20
 
     var body: some View {
         if let project = appState.activeProject {
@@ -41,9 +44,13 @@ struct WorkspaceView: View {
             }
             .onAppear {
                 syncDrafts(project)
+                installDragStateResetMonitor()
             }
             .onChange(of: project.updatedAt) { _, _ in
                 syncDrafts(project)
+            }
+            .onDisappear {
+                removeDragStateResetMonitor()
             }
             .animation(.snappy(duration: 0.28, extraBounce: 0.04), value: appState.currentMode)
         }
@@ -57,6 +64,7 @@ struct WorkspaceView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                .foregroundStyle(LakaiTheme.ink)
 
                 TextField("Projekttitel", text: Binding(
                     get: { appState.activeProject?.title ?? "" },
@@ -80,6 +88,7 @@ struct WorkspaceView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                .foregroundStyle(LakaiTheme.ink)
 
                 Button(appState.currentMode == .schedule ? "Drehplan PDF" : "Storyboard PDF") {
                     if appState.currentMode == .schedule {
@@ -91,6 +100,7 @@ struct WorkspaceView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
                 .tint(LakaiTheme.accent)
+                .foregroundStyle(LakaiTheme.ink)
             }
 
             HStack(alignment: .center, spacing: 10) {
@@ -152,6 +162,7 @@ struct WorkspaceView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Skript")
                         .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(LakaiTheme.ink)
                     Text("Zeilen vor dem ersten Marker werden ignoriert. Neue Shots beginnen mit •, #, -, * oder [ ].")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(LakaiTheme.mutedInk)
@@ -221,6 +232,7 @@ struct WorkspaceView: View {
                 HStack {
                     Text("Shotlist")
                         .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(LakaiTheme.ink)
 
                     Spacer()
 
@@ -230,6 +242,7 @@ struct WorkspaceView: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
                     .tint(LakaiTheme.accent)
+                    .foregroundStyle(LakaiTheme.ink)
                 }
 
                 LazyVStack(spacing: 10) {
@@ -258,36 +271,36 @@ struct WorkspaceView: View {
                                 setupBinding: .constant(""),
                                 durationBinding: .constant("")
                             )
-                            .scaleEffect(draggedShotID == shot.id ? 0.985 : 1)
-                            .opacity(draggedShotID == shot.id ? 0.3 : 1)
+                            .scaleEffect(draggedShotID == shot.id ? 1.01 : 1)
+                            .overlay(reorderCardOverlay(isDragged: draggedShotID == shot.id))
+                            .zIndex(draggedShotID == shot.id ? 2 : 0)
                             .onDrag {
                                 draggedShotID = shot.id
                                 return NSItemProvider(object: shot.id.uuidString as NSString)
+                            } preview: {
+                                dragPreviewPlaceholder
                             }
                             .onDrop(
                                 of: [UTType.text],
                                 delegate: ReorderDropDelegate(
                                     itemID: shot.id,
-                                    orderedIDs: project.shotOrder,
+                                    orderedIDsProvider: { appState.activeProject?.shotOrder ?? [] },
                                     draggedID: $draggedShotID,
-                                    hoveredID: $hoveredDropTargetID,
+                                    insertAfterTarget: true,
                                     onMove: { from, to in
-                                        appState.moveItem(in: .shotlist, from: from, to: to)
+                                        appState.moveItemLive(in: .shotlist, from: from, to: to)
                                     }
                                 )
                             )
-
-                            if hoveredDropTargetID == shot.id && draggedShotID != nil {
-                                Divider()
-                                    .frame(height: 2)
-                                    .background(LakaiTheme.ink)
-                                    .padding(.top, 10)
-                                    .transition(.opacity)
-                            }
                         }
                     }
                 }
+                .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.88), value: draggedShotID)
             }
+        }
+        .onDrop(of: [UTType.text], isTargeted: nil) { _ in
+            resetDragState()
+            return true
         }
     }
 
@@ -301,6 +314,7 @@ struct WorkspaceView: View {
                 HStack {
                     Text("Drehplan")
                         .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(LakaiTheme.ink)
 
                     Spacer()
 
@@ -310,20 +324,131 @@ struct WorkspaceView: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
                     .tint(LakaiTheme.accent)
+                    .foregroundStyle(LakaiTheme.ink)
+                }
+
+                setupCard(for: project)
+
+                if let firstBlockID = orderedBlocks.first?.id,
+                   draggedScheduleBlockID != nil {
+                    scheduleTopDropZone(firstBlockID: firstBlockID)
                 }
 
                 LazyVStack(spacing: 10) {
                     ForEach(orderedBlocks, id: \.id) { block in
-                        if block.kind == .pause {
-                            pauseCard(for: block, entry: entryLookup[block.id])
-                        } else if let shotID = block.shotID,
-                                  let shot = project.shot(with: shotID),
-                                  let entry = entryLookup[block.id] {
-                            scheduleShotCard(for: block, shot: shot, entry: entry, isLastBlock: orderedBlocks.last?.id == block.id)
+                        VStack(spacing: 0) {
+                            if block.kind == .pause {
+                                pauseCard(for: block, entry: entryLookup[block.id])
+                            } else if let shotID = block.shotID,
+                                      let shot = project.shot(with: shotID),
+                                      let entry = entryLookup[block.id] {
+                                scheduleShotCard(for: block, shot: shot, entry: entry, isLastBlock: orderedBlocks.last?.id == block.id)
+                            }
                         }
                     }
                 }
+                .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.88), value: draggedScheduleBlockID)
             }
+        }
+        .onDrop(of: [UTType.text], isTargeted: nil) { _ in
+            resetDragState()
+            return true
+        }
+    }
+
+    private func scheduleTopDropZone(firstBlockID: UUID) -> some View {
+        dropGapView
+            .onDrop(
+                of: [UTType.text],
+                delegate: ReorderDropDelegate(
+                    itemID: firstBlockID,
+                    orderedIDsProvider: { appState.activeProject?.orderedScheduleBlocks.map(\.id) ?? [] },
+                    draggedID: $draggedScheduleBlockID,
+                    insertAfterTarget: false,
+                    onMove: { from, to in
+                        appState.moveItemLive(in: .schedule, from: from, to: to)
+                    }
+                )
+            )
+    }
+
+    private func setupCard(for project: ProjectDocument) -> some View {
+        let startSeconds = project.scheduleSettings.shootStartMinutes * 60
+        let endSeconds = startSeconds + project.scheduleSettings.setupDurationSeconds
+
+        return HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Start")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(LakaiTheme.ink)
+                Text(LakaiFormatters.timeString(from: startSeconds))
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(LakaiTheme.ink)
+            }
+            .frame(width: 84, alignment: .topLeading)
+            .padding(8)
+            .background(LakaiTheme.accentSoft)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(LakaiTheme.panelBorder, lineWidth: 1))
+
+            HStack(spacing: 12) {
+                Text("Setup")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(LakaiTheme.ink)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(LakaiTheme.accentSoft)
+                    .clipShape(Capsule())
+
+                TextField("Bezeichnung", text: Binding(
+                    get: { appState.activeProject?.scheduleSettings.setupTitle ?? "Setup" },
+                    set: { appState.updateSetupTitle($0) }
+                ))
+                .textFieldStyle(.plain)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(LakaiTheme.accentSoft)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .foregroundStyle(LakaiTheme.ink)
+                .font(.system(size: 13, weight: .medium))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Dauer")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(LakaiTheme.ink)
+
+                    TextField("0:15", text: Binding(
+                        get: {
+                            if setupDurationDraft.isEmpty {
+                                return LakaiFormatters.durationString(from: project.scheduleSettings.setupDurationSeconds)
+                            }
+                            return setupDurationDraft
+                        },
+                        set: { value in
+                            setupDurationDraft = value
+                            appState.updateSetupDuration(value)
+                        }
+                    ))
+                    .textFieldStyle(.plain)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(LakaiTheme.accentSoft)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .foregroundStyle(LakaiTheme.ink)
+                    .font(.system(size: 12, weight: .medium))
+                    .frame(width: 96)
+                }
+
+                Spacer(minLength: 0)
+
+                Text("Ende: \(LakaiFormatters.timeString(from: endSeconds))")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(LakaiTheme.ink)
+            }
+            .padding(12)
+            .background(LakaiTheme.panel.opacity(0.96))
+            .clipShape(RoundedRectangle(cornerRadius: 18))
+            .overlay(RoundedRectangle(cornerRadius: 18).stroke(LakaiTheme.panelBorder, lineWidth: 1))
         }
     }
 
@@ -413,21 +538,25 @@ struct WorkspaceView: View {
             .clipShape(RoundedRectangle(cornerRadius: 18))
             .overlay(RoundedRectangle(cornerRadius: 18).stroke(LakaiTheme.panelBorder, lineWidth: 1))
         }
-        .scaleEffect(draggedScheduleBlockID == entry.id ? 0.985 : 1)
-        .opacity(draggedScheduleBlockID == entry.id ? 0.3 : 1)
+        .scaleEffect(draggedScheduleBlockID == entry.id ? 1.01 : 1)
+        .overlay(reorderCardOverlay(isDragged: draggedScheduleBlockID == entry.id))
+        .zIndex(draggedScheduleBlockID == entry.id ? 2 : 0)
+        .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.88), value: draggedScheduleBlockID)
         .onDrag {
             draggedScheduleBlockID = entry.id
             return NSItemProvider(object: entry.id.uuidString as NSString)
+        } preview: {
+            dragPreviewPlaceholder
         }
         .onDrop(
             of: [UTType.text],
             delegate: ReorderDropDelegate(
                 itemID: entry.id,
-                orderedIDs: appState.activeProject?.orderedScheduleBlocks.map(\.id) ?? [],
+                orderedIDsProvider: { appState.activeProject?.orderedScheduleBlocks.map(\.id) ?? [] },
                 draggedID: $draggedScheduleBlockID,
-                hoveredID: $hoveredScheduleDropTargetID,
+                insertAfterTarget: true,
                 onMove: { from, to in
-                    appState.moveItem(in: .schedule, from: from, to: to)
+                    appState.moveItemLive(in: .schedule, from: from, to: to)
                 }
             )
         )
@@ -531,21 +660,25 @@ struct WorkspaceView: View {
             .clipShape(RoundedRectangle(cornerRadius: 18))
             .overlay(RoundedRectangle(cornerRadius: 18).stroke(LakaiTheme.panelBorder, lineWidth: 1))
         }
-        .scaleEffect(draggedScheduleBlockID == block.id ? 0.985 : 1)
-        .opacity(draggedScheduleBlockID == block.id ? 0.3 : 1)
+        .scaleEffect(draggedScheduleBlockID == block.id ? 1.01 : 1)
+        .overlay(reorderCardOverlay(isDragged: draggedScheduleBlockID == block.id))
+        .zIndex(draggedScheduleBlockID == block.id ? 2 : 0)
+        .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.88), value: draggedScheduleBlockID)
         .onDrag {
             draggedScheduleBlockID = block.id
             return NSItemProvider(object: block.id.uuidString as NSString)
+        } preview: {
+            dragPreviewPlaceholder
         }
         .onDrop(
             of: [UTType.text],
             delegate: ReorderDropDelegate(
                 itemID: block.id,
-                orderedIDs: appState.activeProject?.orderedScheduleBlocks.map(\.id) ?? [],
+                orderedIDsProvider: { appState.activeProject?.orderedScheduleBlocks.map(\.id) ?? [] },
                 draggedID: $draggedScheduleBlockID,
-                hoveredID: $hoveredScheduleDropTargetID,
+                insertAfterTarget: true,
                 onMove: { from, to in
-                    appState.moveItem(in: .schedule, from: from, to: to)
+                    appState.moveItemLive(in: .schedule, from: from, to: to)
                 }
             )
         )
@@ -594,7 +727,7 @@ struct WorkspaceView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(LakaiTheme.mutedInk)
+                .foregroundStyle(LakaiTheme.ink)
 
             TextField(title, text: text)
                 .textFieldStyle(.plain)
@@ -612,7 +745,7 @@ struct WorkspaceView: View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title)
                 .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(LakaiTheme.mutedInk)
+                .foregroundStyle(LakaiTheme.ink)
 
             TextField(title, text: Binding(get: { value }, set: onChange))
                 .textFieldStyle(.plain)
@@ -637,6 +770,7 @@ struct WorkspaceView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            .foregroundStyle(LakaiTheme.ink)
             .popover(isPresented: isPresented, arrowEdge: .bottom) {
                 content()
             }
@@ -659,6 +793,7 @@ struct WorkspaceView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            .foregroundStyle(LakaiTheme.ink)
 
             if imageURL != nil {
                 Button("x") {
@@ -666,6 +801,7 @@ struct WorkspaceView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                .foregroundStyle(LakaiTheme.ink)
             }
         }
     }
@@ -711,22 +847,98 @@ struct WorkspaceView: View {
         scheduleSetupDrafts = Dictionary(uniqueKeysWithValues: project.shots.map { ($0.id, LakaiFormatters.durationString(from: $0.setupSeconds)) })
         scheduleDurationDrafts = Dictionary(uniqueKeysWithValues: project.shots.map { ($0.id, LakaiFormatters.durationString(from: $0.durationSeconds)) })
         pauseDurationDrafts = Dictionary(uniqueKeysWithValues: project.orderedScheduleBlocks.filter { $0.kind == .pause }.map { ($0.id, LakaiFormatters.durationString(from: $0.durationSeconds)) })
+        setupDurationDraft = LakaiFormatters.durationString(from: project.scheduleSettings.setupDurationSeconds)
+    }
+
+    private func resetDragState() {
+        appState.commitPendingReorderChanges()
+        draggedShotID = nil
+        draggedScheduleBlockID = nil
+    }
+
+    private func installDragStateResetMonitor() {
+        guard localMouseUpMonitor == nil else {
+            return
+        }
+
+        localMouseUpMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseUp]) { event in
+            resetDragState()
+            return event
+        }
+
+        globalMouseUpMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseUp]) { _ in
+            DispatchQueue.main.async {
+                resetDragState()
+            }
+        }
+    }
+
+    private func removeDragStateResetMonitor() {
+        if let localMouseUpMonitor {
+            NSEvent.removeMonitor(localMouseUpMonitor)
+            self.localMouseUpMonitor = nil
+        }
+
+        if let globalMouseUpMonitor {
+            NSEvent.removeMonitor(globalMouseUpMonitor)
+            self.globalMouseUpMonitor = nil
+        }
+    }
+
+    private func reorderCardOverlay(isDragged: Bool) -> some View {
+        let lineWidth: CGFloat = isDragged ? 2.0 : 0
+
+        return RoundedRectangle(cornerRadius: 18)
+            .stroke(LakaiTheme.ink.opacity(isDragged ? 0.95 : 0), lineWidth: lineWidth)
+    }
+
+    private var dragPreviewPlaceholder: some View {
+        RoundedRectangle(cornerRadius: 3)
+            .fill(Color.clear)
+            .frame(width: 2, height: 2)
+    }
+
+    private var dropGapView: some View {
+        Color.clear
+            .frame(height: dropGapHeight)
     }
 }
 
 private struct ReorderDropDelegate: DropDelegate {
     let itemID: UUID
-    let orderedIDs: [UUID]
+    let orderedIDsProvider: () -> [UUID]
     @Binding var draggedID: UUID?
-    @Binding var hoveredID: UUID?
+    let insertAfterTarget: Bool
     let onMove: (Int, Int) -> Void
 
     func dropEntered(info: DropInfo) {
-        hoveredID = itemID
+        guard let draggedID,
+              draggedID != itemID else {
+            return
+        }
+
+        let orderedIDs = orderedIDsProvider()
+
+        guard let fromIndex = orderedIDs.firstIndex(of: draggedID),
+              let toIndex = orderedIDs.firstIndex(of: itemID),
+              fromIndex != toIndex else {
+            return
+        }
+
+        let destination = insertAfterTarget ? toIndex + 1 : toIndex
+
+        // Ignore no-op moves to avoid jitter while hovering nearby cells.
+        if fromIndex == destination || fromIndex + 1 == destination {
+            return
+        }
+
+        withAnimation(.interactiveSpring(response: 0.22, dampingFraction: 0.88)) {
+            onMove(fromIndex, destination)
+        }
     }
 
     func dropExited(info: DropInfo) {
-        hoveredID = nil
+        return
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
@@ -734,16 +946,7 @@ private struct ReorderDropDelegate: DropDelegate {
     }
 
     func performDrop(info: DropInfo) -> Bool {
-        if let draggedID,
-           draggedID != itemID,
-           let fromIndex = orderedIDs.firstIndex(of: draggedID),
-           let toIndex = orderedIDs.firstIndex(of: itemID),
-           fromIndex != toIndex {
-            onMove(fromIndex, toIndex)
-        }
-
         draggedID = nil
-        hoveredID = nil
         return true
     }
 }

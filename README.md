@@ -221,9 +221,9 @@ MyProject/
 - Updates in real-time as user adjusts parameters
 
 ### PDF Generation
-- **PDFExportService** uses SwiftUI `ImageRenderer` hosted in AppKit
-- Consistent rendering across display scales
-- Embeds images and logo graphics
+- **PDFExportService** renders direct Core Graphics tables on white pages (print-friendly)
+- Uses CoreText wrapping and dynamic row heights to avoid clipped text
+- Embeds storyboard images through robust asset decoding and high-quality interpolation
 - Increments version counters post-export
 
 ---

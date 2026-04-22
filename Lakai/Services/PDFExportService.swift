@@ -2,6 +2,7 @@ import AppKit
 import CoreGraphics
 import CoreText
 import Foundation
+import ImageIO
 
 @MainActor
 struct PDFExportService {
@@ -28,20 +29,39 @@ struct PDFExportService {
     }
 
     func exportSchedule(project: ProjectDocument, computation: ScheduleComputation, destinationURL: URL, activeProjectURL: URL?, persistence: ProjectPersistenceService) throws -> URL {
-        let rows = computation.entries.map { entry in
+        let setupStartTime = project.scheduleSettings.shootStartMinutes * 60
+        let setupEndTime = setupStartTime + max(project.scheduleSettings.setupDurationSeconds, 0)
+
+        var rows: [ScheduleTableRow] = [
             ScheduleTableRow(
-                blockType: entry.block.kind == .pause ? "Pause" : "Shot",
-                shotNumber: entry.shotNumber,
-                size: entry.shot?.size.title ?? (entry.block.kind == .pause ? "" : "-"),
-                setupStart: entry.setupStart.map(LakaiFormatters.timeString(from:)) ?? "-",
+                rowKind: .setup,
+                shotLabel: "Setup",
+                size: "",
+                setupStart: "",
+                shootStart: LakaiFormatters.timeString(from: setupStartTime),
+                shootEnd: LakaiFormatters.timeString(from: setupEndTime),
+                description: project.scheduleSettings.setupTitle,
+                shotNotes: "",
+                scheduleNotes: "",
+                imageFileName: nil
+            )
+        ]
+
+        rows.append(contentsOf: computation.entries.map { entry in
+            let isPause = entry.block.kind == .pause
+            return ScheduleTableRow(
+                rowKind: isPause ? .pause : .shot,
+                shotLabel: isPause ? "Pause" : (entry.shotNumber.map(String.init) ?? ""),
+                size: entry.shot?.size.title ?? "",
+                setupStart: entry.setupStart.map(LakaiFormatters.timeString(from:)) ?? "",
                 shootStart: LakaiFormatters.timeString(from: entry.startTime),
                 shootEnd: LakaiFormatters.timeString(from: entry.endTime),
-                description: entry.block.kind == .pause ? entry.block.title : (entry.shot?.descriptionText ?? "-"),
+                description: isPause ? entry.block.title : (entry.shot?.descriptionText ?? ""),
                 shotNotes: entry.shot?.notes ?? "",
                 scheduleNotes: entry.block.scheduleNotes,
                 imageFileName: entry.shot?.imageFileName
             )
-        }
+        })
 
         try generateSchedulePDF(
             project: project,
@@ -64,132 +84,53 @@ struct PDFExportService {
         persistence: ProjectPersistenceService
     ) throws {
         let pageSize = CGSize(width: 842, height: 595)
-        let pageHeight = pageSize.height
-        let pageWidth = pageSize.width
-        let marginLeft: CGFloat = 28
-        let marginRight: CGFloat = 28
-        let marginTop: CGFloat = 28
-        let marginBottom: CGFloat = 28
-        let headerHeight: CGFloat = 80
-        let rowHeight: CGFloat = 50
+        let metrics = PDFPageMetrics(pageSize: pageSize)
+        let columns = storyboardColumns(for: metrics)
 
-        var mediaBox = CGRect(x: 0, y: 0, width: pageWidth, height: pageHeight)
+        var mediaBox = CGRect(origin: .zero, size: pageSize)
         guard let consumer = CGDataConsumer(url: destinationURL as CFURL),
               let context = CGContext(consumer: consumer, mediaBox: &mediaBox, nil) else {
             throw NSError(domain: "LakaiPDFError", code: 99, userInfo: [NSLocalizedDescriptionKey: "PDF context could not be created."])
         }
 
         var pageNumber = 0
-        var currentY = pageHeight - marginTop
+        var currentY: CGFloat = 0
 
-        // Helper to add a new page
         func beginNewPage() {
             if pageNumber > 0 {
                 context.endPDFPage()
             }
             context.beginPDFPage([kCGPDFContextMediaBox as String: mediaBox] as CFDictionary)
             pageNumber += 1
-            currentY = pageHeight - marginTop
-            
-            // Draw page header
-            let titleFont = CTFontCreateWithName("Helvetica-Bold" as CFString, 20, nil)
-            let titleAttrs: [NSAttributedString.Key: Any] = [.font: titleFont]
-            let titleAS = NSAttributedString(string: project.title, attributes: titleAttrs)
-            let titleLine = CTLineCreateWithAttributedString(titleAS)
-            context.textPosition = CGPoint(x: marginLeft, y: currentY)
-            CTLineDraw(titleLine, context)
-            currentY -= 28
+            currentY = metrics.pageHeight - metrics.marginTop
 
-            // Metadata
-            let smallFont = CTFontCreateWithName("Helvetica" as CFString, 10, nil)
-            let smallAttrs: [NSAttributedString.Key: Any] = [.font: smallFont]
-            let versionStr = "Version v\(project.storyboardVersion) | \(LakaiFormatters.exportDate.string(from: Date())) | \(rows.count) Shots"
-            let versionAS = NSAttributedString(string: versionStr, attributes: smallAttrs)
-            let versionLine = CTLineCreateWithAttributedString(versionAS)
-            context.textPosition = CGPoint(x: marginLeft, y: currentY)
-            CTLineDraw(versionLine, context)
-            currentY -= 16
-            
-            // Column headers
-            drawStoryboardHeaders(context: context, y: currentY, pageWidth: pageWidth, marginLeft: marginLeft, marginRight: marginRight)
-            currentY -= 24
+            fillPageBackground(context: context, mediaBox: mediaBox)
+            currentY = drawStoryboardPageHeader(context: context, project: project, shotCount: rows.count, metrics: metrics, startY: currentY)
+            currentY = drawTableHeader(context: context, columns: columns, metrics: metrics, baselineY: currentY)
         }
 
         beginNewPage()
 
         for row in rows {
-            if currentY - rowHeight < marginBottom {
+            let rowHeight = storyboardRowHeight(row: row, columns: columns, metrics: metrics)
+            if currentY - rowHeight < metrics.marginBottom {
                 beginNewPage()
             }
-            drawStoryboardRow(context: context, row: row, y: currentY, pageWidth: pageWidth, marginLeft: marginLeft, marginRight: marginRight, rowHeight: rowHeight, activeProjectURL: activeProjectURL, persistence: persistence)
-            currentY -= rowHeight - 1
+            drawStoryboardRow(
+                context: context,
+                row: row,
+                columns: columns,
+                metrics: metrics,
+                topY: currentY,
+                rowHeight: rowHeight,
+                activeProjectURL: activeProjectURL,
+                persistence: persistence
+            )
+            currentY -= rowHeight
         }
 
         context.endPDFPage()
         context.closePDF()
-    }
-
-    private func drawStoryboardHeaders(context: CGContext, y: CGFloat, pageWidth: CGFloat, marginLeft: CGFloat, marginRight: CGFloat) {
-        let font = CTFontCreateWithName("Helvetica-Bold" as CFString, 9, nil)
-        let attrs: [NSAttributedString.Key: Any] = [.font: font]
-        
-        let headers = ["Shot", "Größe", "Beschreibung", "Notiz", "Bild"]
-        let widths: [CGFloat] = [40, 60, 200, 150, 80]
-        
-        var x = marginLeft
-        for (header, width) in zip(headers, widths) {
-            let attributedString = NSAttributedString(string: header, attributes: attrs)
-            let line = CTLineCreateWithAttributedString(attributedString)
-            context.textPosition = CGPoint(x: x + 2, y: y)
-            CTLineDraw(line, context)
-            x += width
-        }
-    }
-
-    private func drawStoryboardRow(context: CGContext, row: StoryboardTableRow, y: CGFloat, pageWidth: CGFloat, marginLeft: CGFloat, marginRight: CGFloat, rowHeight: CGFloat, activeProjectURL: URL?, persistence: ProjectPersistenceService) {
-        let tableWidth = pageWidth - marginLeft - marginRight
-        
-        // Background
-        context.setFillColor(NSColor(red: 0.98, green: 0.98, blue: 0.97, alpha: 1).cgColor)
-        context.fill(CGRect(x: marginLeft, y: y - rowHeight, width: tableWidth, height: rowHeight))
-        
-        // Border
-        context.setStrokeColor(NSColor(red: 0.71, green: 0.71, blue: 0.69, alpha: 1).cgColor)
-        context.setLineWidth(0.5)
-        context.stroke(CGRect(x: marginLeft, y: y - rowHeight, width: tableWidth, height: rowHeight))
-        
-        let font = CTFontCreateWithName("Helvetica" as CFString, 9, nil)
-        let attrs: [NSAttributedString.Key: Any] = [.font: font]
-        
-        let data = [
-            String(row.shotNumber),
-            row.size,
-            row.description.prefix(30).description,
-            row.notes.prefix(25).description,
-            ""
-        ]
-        let widths: [CGFloat] = [40, 60, 200, 150, 80]
-        
-        var x = marginLeft
-        for (i, (datum, width)) in zip(data, widths).enumerated() {
-            if i < 4 {
-                let attributedString = NSAttributedString(string: datum, attributes: attrs)
-                let line = CTLineCreateWithAttributedString(attributedString)
-                context.textPosition = CGPoint(x: x + 2, y: y - 14)
-                CTLineDraw(line, context)
-            } else {
-                // Image cell
-                if let imageFileName = row.imageFileName,
-                   let activeProjectURL = activeProjectURL,
-                   let imageURL = persistence.resolveAssetURL(fileName: imageFileName, in: activeProjectURL, subfolder: "Images"),
-                   let nsImage = NSImage(contentsOf: imageURL),
-                   let cgImage = nsImage.cgImage(forProposedRect: nil, context: nil, hints: nil) {
-                    let imgRect = CGRect(x: x + 2, y: y - rowHeight + 2, width: width - 4, height: rowHeight - 4)
-                    context.draw(cgImage, in: imgRect)
-                }
-            }
-            x += width
-        }
     }
 
     // MARK: - Schedule PDF
@@ -202,23 +143,17 @@ struct PDFExportService {
         persistence: ProjectPersistenceService
     ) throws {
         let pageSize = CGSize(width: 842, height: 595)
-        let pageHeight = pageSize.height
-        let pageWidth = pageSize.width
-        let marginLeft: CGFloat = 28
-        let marginRight: CGFloat = 28
-        let marginTop: CGFloat = 28
-        let marginBottom: CGFloat = 28
-        let headerHeight: CGFloat = 130
-        let rowHeight: CGFloat = 38
+        let metrics = PDFPageMetrics(pageSize: pageSize)
+        let columns = scheduleColumns(for: metrics)
 
-        var mediaBox = CGRect(x: 0, y: 0, width: pageWidth, height: pageHeight)
+        var mediaBox = CGRect(origin: .zero, size: pageSize)
         guard let consumer = CGDataConsumer(url: destinationURL as CFURL),
               let context = CGContext(consumer: consumer, mediaBox: &mediaBox, nil) else {
             throw NSError(domain: "LakaiPDFError", code: 99, userInfo: [NSLocalizedDescriptionKey: "PDF context could not be created."])
         }
 
         var pageNumber = 0
-        var currentY = pageHeight - marginTop
+        var currentY: CGFloat = 0
 
         func beginNewPage() {
             if pageNumber > 0 {
@@ -226,121 +161,484 @@ struct PDFExportService {
             }
             context.beginPDFPage([kCGPDFContextMediaBox as String: mediaBox] as CFDictionary)
             pageNumber += 1
-            currentY = pageHeight - marginTop
-            drawSchedulePageHeader(context: context, project: project, y: currentY, pageWidth: pageWidth, marginLeft: marginLeft, activeProjectURL: activeProjectURL, persistence: persistence)
-            currentY -= headerHeight
-            drawScheduleHeaders(context: context, y: currentY, pageWidth: pageWidth, marginLeft: marginLeft, marginRight: marginRight)
-            currentY -= 18
+            currentY = metrics.pageHeight - metrics.marginTop
+
+            fillPageBackground(context: context, mediaBox: mediaBox)
+            currentY = drawSchedulePageHeader(
+                context: context,
+                project: project,
+                metrics: metrics,
+                startY: currentY,
+                activeProjectURL: activeProjectURL,
+                persistence: persistence
+            )
+            currentY = drawTableHeader(context: context, columns: columns, metrics: metrics, baselineY: currentY)
         }
 
         beginNewPage()
 
         for row in rows {
-            if currentY - rowHeight < marginBottom {
+            let rowHeight = scheduleRowHeight(row: row, columns: columns, metrics: metrics)
+            if currentY - rowHeight < metrics.marginBottom {
                 beginNewPage()
             }
-            drawScheduleRow(context: context, row: row, y: currentY, pageWidth: pageWidth, marginLeft: marginLeft, marginRight: marginRight, rowHeight: rowHeight, activeProjectURL: activeProjectURL, persistence: persistence)
-            currentY -= rowHeight - 1
+            drawScheduleRow(
+                context: context,
+                row: row,
+                columns: columns,
+                metrics: metrics,
+                topY: currentY,
+                rowHeight: rowHeight,
+                activeProjectURL: activeProjectURL,
+                persistence: persistence
+            )
+            currentY -= rowHeight
         }
 
         context.endPDFPage()
         context.closePDF()
     }
 
-    private func drawSchedulePageHeader(context: CGContext, project: ProjectDocument, y: CGFloat, pageWidth: CGFloat, marginLeft: CGFloat, activeProjectURL: URL?, persistence: ProjectPersistenceService) {
-        let titleFont = CTFontCreateWithName("Helvetica-Bold" as CFString, 20, nil)
-        let titleAttrs: [NSAttributedString.Key: Any] = [.font: titleFont]
-        let titleAS = NSAttributedString(string: project.title, attributes: titleAttrs)
-        let titleLine = CTLineCreateWithAttributedString(titleAS)
-        context.textPosition = CGPoint(x: marginLeft, y: y)
-        CTLineDraw(titleLine, context)
+    private func drawStoryboardPageHeader(context: CGContext, project: ProjectDocument, shotCount: Int, metrics: PDFPageMetrics, startY: CGFloat) -> CGFloat {
+        var y = startY
+        let titleRect = CGRect(x: metrics.marginLeft, y: y - 26, width: metrics.tableWidth, height: 26)
+        drawWrappedText("\(project.title) - Storyboard", in: titleRect, context: context, font: metrics.headerFont, alignment: .left)
+        y -= 28
 
-        let smallFont = CTFontCreateWithName("Helvetica" as CFString, 8, nil)
-        let smallAttrs: [NSAttributedString.Key: Any] = [.font: smallFont]
-        
-        var textY = y - 18
+        let meta = "Version v\(project.storyboardVersion) | Export: \(LakaiFormatters.exportDate.string(from: Date())) | Shots: \(shotCount)"
+        let metaRect = CGRect(x: metrics.marginLeft, y: y - 14, width: metrics.tableWidth, height: 14)
+        drawWrappedText(meta, in: metaRect, context: context, font: metrics.metaFont, alignment: .left)
+        y -= 22
+        return y
+    }
+
+    private func drawSchedulePageHeader(
+        context: CGContext,
+        project: ProjectDocument,
+        metrics: PDFPageMetrics,
+        startY: CGFloat,
+        activeProjectURL: URL?,
+        persistence: ProjectPersistenceService
+    ) -> CGFloat {
+        var y = startY
+        let logoReserveWidth = drawScheduleLogos(
+            context: context,
+            project: project,
+            metrics: metrics,
+            topY: y,
+            activeProjectURL: activeProjectURL,
+            persistence: persistence
+        )
+
+        let textWidth = max(metrics.tableWidth - logoReserveWidth - 8, 260)
+        let titleRect = CGRect(x: metrics.marginLeft, y: y - 26, width: textWidth, height: 26)
+        drawWrappedText("\(project.title) - Drehplan", in: titleRect, context: context, font: metrics.headerFont, alignment: .left)
+        y -= 28
+
         let infoLines = [
-            "Version v\(project.scheduleVersion) | \(LakaiFormatters.exportDate.string(from: Date()))",
+            "Version v\(project.scheduleVersion) | Export: \(LakaiFormatters.exportDate.string(from: Date()))",
             "Drehtag: \(LakaiFormatters.shootDate.string(from: project.scheduleSettings.shootDate)) | Start: \(LakaiFormatters.timeString(from: project.scheduleSettings.shootStartMinutes * 60))",
-            "Regie: \(project.crewInfo.director.isEmpty ? "-" : project.crewInfo.director) | 1st AD: \(project.crewInfo.firstAD.isEmpty ? "-" : project.crewInfo.firstAD) | Producer: \(project.crewInfo.producer.isEmpty ? "-" : project.crewInfo.producer)",
-            "DoP: \(project.crewInfo.dop.isEmpty ? "-" : project.crewInfo.dop) | Kunde: \(project.crewInfo.client.isEmpty ? "-" : project.crewInfo.client)"
+            "Regie: \(project.crewInfo.director) | 1st AD: \(project.crewInfo.firstAD) | Producer: \(project.crewInfo.producer)",
+            "DoP: \(project.crewInfo.dop) | Kunde: \(project.crewInfo.client)"
         ]
-        
+
         for line in infoLines {
-            let attributedString = NSAttributedString(string: line, attributes: smallAttrs)
-            let ctLine = CTLineCreateWithAttributedString(attributedString)
-            context.textPosition = CGPoint(x: marginLeft, y: textY)
-            CTLineDraw(ctLine, context)
-            textY -= 12
+            let lineRect = CGRect(x: metrics.marginLeft, y: y - 12, width: textWidth, height: 12)
+            drawWrappedText(line, in: lineRect, context: context, font: metrics.metaFont, alignment: .left)
+            y -= 14
         }
+
+        y -= 4
+        return y
     }
 
-    private func drawScheduleHeaders(context: CGContext, y: CGFloat, pageWidth: CGFloat, marginLeft: CGFloat, marginRight: CGFloat) {
-        let font = CTFontCreateWithName("Helvetica-Bold" as CFString, 8, nil)
-        let attrs: [NSAttributedString.Key: Any] = [.font: font]
-        
-        let headers = ["Shot", "Typ", "Setup", "Start", "Ende", "Beschreibung", "S-Notizen", "P-Notizen", "Bild"]
-        let widths: [CGFloat] = [35, 35, 40, 40, 40, 150, 80, 80, 50]
-        
-        var x = marginLeft
-        for (header, width) in zip(headers, widths) {
-            let attributedString = NSAttributedString(string: header, attributes: attrs)
-            let line = CTLineCreateWithAttributedString(attributedString)
-            context.textPosition = CGPoint(x: x + 1, y: y)
-            CTLineDraw(line, context)
-            x += width
+    private func drawTableHeader(context: CGContext, columns: [PDFColumn], metrics: PDFPageMetrics, baselineY: CGFloat) -> CGFloat {
+        let rect = CGRect(x: metrics.marginLeft, y: baselineY - metrics.headerRowHeight, width: metrics.tableWidth, height: metrics.headerRowHeight)
+        context.setFillColor(NSColor(white: 0.94, alpha: 1).cgColor)
+        context.fill(rect)
+
+        drawGrid(context: context, columns: columns, rowRect: rect, strokeColor: NSColor(white: 0.65, alpha: 1))
+
+        var x = metrics.marginLeft
+        for column in columns {
+            let textRect = CGRect(
+                x: x + metrics.cellHorizontalPadding,
+                y: rect.minY + 3,
+                width: column.width - (metrics.cellHorizontalPadding * 2),
+                height: rect.height - 6
+            )
+            drawWrappedText(column.title, in: textRect, context: context, font: metrics.boldFont, alignment: column.alignment)
+            x += column.width
         }
+
+        return rect.minY
     }
 
-    private func drawScheduleRow(context: CGContext, row: ScheduleTableRow, y: CGFloat, pageWidth: CGFloat, marginLeft: CGFloat, marginRight: CGFloat, rowHeight: CGFloat, activeProjectURL: URL?, persistence: ProjectPersistenceService) {
-        let tableWidth = pageWidth - marginLeft - marginRight
-        
-        // Background
-        context.setFillColor(NSColor(red: 0.98, green: 0.98, blue: 0.97, alpha: 1).cgColor)
-        context.fill(CGRect(x: marginLeft, y: y - rowHeight, width: tableWidth, height: rowHeight))
-        
-        // Border
-        context.setStrokeColor(NSColor(red: 0.71, green: 0.71, blue: 0.69, alpha: 1).cgColor)
-        context.setLineWidth(0.5)
-        context.stroke(CGRect(x: marginLeft, y: y - rowHeight, width: tableWidth, height: rowHeight))
-        
-        let font = CTFontCreateWithName("Helvetica" as CFString, 8, nil)
-        let attrs: [NSAttributedString.Key: Any] = [.font: font]
-        
-        let data = [
-            row.shotNumber.map(String.init) ?? "-",
-            row.blockType,
-            row.setupStart,
-            row.shootStart,
-            row.shootEnd,
-            row.description.prefix(25).description,
-            row.shotNotes.prefix(15).description,
-            row.scheduleNotes.prefix(15).description,
-            ""
-        ]
-        let widths: [CGFloat] = [35, 35, 40, 40, 40, 150, 80, 80, 50]
-        
-        var x = marginLeft
-        for (i, (datum, width)) in zip(data, widths).enumerated() {
-            if i < 8 {
-                let attributedString = NSAttributedString(string: datum, attributes: attrs)
-                let line = CTLineCreateWithAttributedString(attributedString)
-                context.textPosition = CGPoint(x: x + 1, y: y - 12)
-                CTLineDraw(line, context)
-            } else {
-                // Image cell
-                if let imageFileName = row.imageFileName,
-                   let activeProjectURL = activeProjectURL,
-                   let imageURL = persistence.resolveAssetURL(fileName: imageFileName, in: activeProjectURL, subfolder: "Images"),
-                   let nsImage = NSImage(contentsOf: imageURL),
-                   let cgImage = nsImage.cgImage(forProposedRect: nil, context: nil, hints: nil) {
-                    let imgRect = CGRect(x: x + 1, y: y - rowHeight + 1, width: width - 2, height: rowHeight - 2)
-                    context.draw(cgImage, in: imgRect)
-                }
+    private func storyboardRowHeight(row: StoryboardTableRow, columns: [PDFColumn], metrics: PDFPageMetrics) -> CGFloat {
+        let descriptionColumn = columns.first(where: { $0.key == .description })?.width ?? 0
+        let notesColumn = columns.first(where: { $0.key == .notes })?.width ?? 0
+        let imageColumn = columns.first(where: { $0.key == .image })?.width ?? 0
+
+        let descriptionHeight = measuredTextHeight(row.description, width: descriptionColumn - (metrics.cellHorizontalPadding * 2), font: metrics.bodyFont)
+        let notesHeight = measuredTextHeight(row.notes, width: notesColumn - (metrics.cellHorizontalPadding * 2), font: metrics.bodyFont)
+        let imageHeight = max(0, (imageColumn - (metrics.cellHorizontalPadding * 2)) * 9 / 16)
+
+        let contentHeight = max(max(descriptionHeight, notesHeight), imageHeight)
+        return max(metrics.minimumStoryboardRowHeight, contentHeight + (metrics.cellVerticalPadding * 2))
+    }
+
+    private func scheduleRowHeight(row: ScheduleTableRow, columns: [PDFColumn], metrics: PDFPageMetrics) -> CGFloat {
+        let descriptionColumn = columns.first(where: { $0.key == .description })?.width ?? 0
+        let shotNotesColumn = columns.first(where: { $0.key == .shotNotes })?.width ?? 0
+        let scheduleNotesColumn = columns.first(where: { $0.key == .scheduleNotes })?.width ?? 0
+        let imageColumn = columns.first(where: { $0.key == .image })?.width ?? 0
+
+        let descriptionHeight = measuredTextHeight(row.description, width: descriptionColumn - (metrics.cellHorizontalPadding * 2), font: metrics.bodyFont)
+        let shotNotesHeight = measuredTextHeight(row.shotNotes, width: shotNotesColumn - (metrics.cellHorizontalPadding * 2), font: metrics.bodyFont)
+        let scheduleNotesHeight = measuredTextHeight(row.scheduleNotes, width: scheduleNotesColumn - (metrics.cellHorizontalPadding * 2), font: metrics.bodyFont)
+        let imageHeight = max(0, (imageColumn - (metrics.cellHorizontalPadding * 2)) * 9 / 16)
+
+        let contentHeight = max(max(descriptionHeight, shotNotesHeight), max(scheduleNotesHeight, imageHeight))
+        return max(metrics.minimumScheduleRowHeight, contentHeight + (metrics.cellVerticalPadding * 2))
+    }
+
+    private func drawStoryboardRow(
+        context: CGContext,
+        row: StoryboardTableRow,
+        columns: [PDFColumn],
+        metrics: PDFPageMetrics,
+        topY: CGFloat,
+        rowHeight: CGFloat,
+        activeProjectURL: URL?,
+        persistence: ProjectPersistenceService
+    ) {
+        let rowRect = CGRect(x: metrics.marginLeft, y: topY - rowHeight, width: metrics.tableWidth, height: rowHeight)
+        context.setFillColor(NSColor.white.cgColor)
+        context.fill(rowRect)
+        drawGrid(context: context, columns: columns, rowRect: rowRect, strokeColor: NSColor(white: 0.72, alpha: 1))
+
+        var x = metrics.marginLeft
+        for column in columns {
+            let cellRect = CGRect(x: x, y: rowRect.minY, width: column.width, height: rowRect.height)
+            let contentRect = CGRect(
+                x: cellRect.minX + metrics.cellHorizontalPadding,
+                y: cellRect.minY + metrics.cellVerticalPadding,
+                width: cellRect.width - (metrics.cellHorizontalPadding * 2),
+                height: cellRect.height - (metrics.cellVerticalPadding * 2)
+            )
+
+            switch column.key {
+            case .shotNumber:
+                drawWrappedText(String(row.shotNumber), in: contentRect, context: context, font: metrics.bodyFont, alignment: .center)
+            case .size:
+                drawWrappedText(row.size, in: contentRect, context: context, font: metrics.bodyFont, alignment: .left)
+            case .description:
+                drawWrappedText(row.description, in: contentRect, context: context, font: metrics.bodyFont, alignment: .left)
+            case .notes:
+                drawWrappedText(row.notes, in: contentRect, context: context, font: metrics.bodyFont, alignment: .left)
+            case .image:
+                drawImageIfAvailable(imageFileName: row.imageFileName, in: contentRect, context: context, activeProjectURL: activeProjectURL, persistence: persistence)
+            default:
+                break
             }
-            x += width
+
+            x += column.width
         }
     }
+
+    private func drawScheduleRow(
+        context: CGContext,
+        row: ScheduleTableRow,
+        columns: [PDFColumn],
+        metrics: PDFPageMetrics,
+        topY: CGFloat,
+        rowHeight: CGFloat,
+        activeProjectURL: URL?,
+        persistence: ProjectPersistenceService
+    ) {
+        let rowRect = CGRect(x: metrics.marginLeft, y: topY - rowHeight, width: metrics.tableWidth, height: rowHeight)
+        let fillColor: NSColor
+        switch row.rowKind {
+        case .pause:
+            fillColor = NSColor(white: 0.94, alpha: 1)
+        case .setup, .shot:
+            fillColor = .white
+        }
+
+        context.setFillColor(fillColor.cgColor)
+        context.fill(rowRect)
+        drawGrid(context: context, columns: columns, rowRect: rowRect, strokeColor: NSColor(white: 0.72, alpha: 1))
+
+        var x = metrics.marginLeft
+        for column in columns {
+            let cellRect = CGRect(x: x, y: rowRect.minY, width: column.width, height: rowRect.height)
+            let contentRect = CGRect(
+                x: cellRect.minX + metrics.cellHorizontalPadding,
+                y: cellRect.minY + metrics.cellVerticalPadding,
+                width: cellRect.width - (metrics.cellHorizontalPadding * 2),
+                height: cellRect.height - (metrics.cellVerticalPadding * 2)
+            )
+
+            switch column.key {
+            case .shotNumber:
+                drawWrappedText(row.shotLabel, in: contentRect, context: context, font: metrics.bodyFont, alignment: .center)
+            case .size:
+                drawWrappedText(row.size, in: contentRect, context: context, font: metrics.bodyFont, alignment: .left)
+            case .setupStart:
+                drawWrappedText(row.setupStart, in: contentRect, context: context, font: metrics.bodyFont, alignment: .center)
+            case .shootStart:
+                drawWrappedText(row.shootStart, in: contentRect, context: context, font: metrics.bodyFont, alignment: .center)
+            case .shootEnd:
+                drawWrappedText(row.shootEnd, in: contentRect, context: context, font: metrics.bodyFont, alignment: .center)
+            case .description:
+                drawWrappedText(row.description, in: contentRect, context: context, font: metrics.bodyFont, alignment: .left)
+            case .shotNotes:
+                drawWrappedText(row.shotNotes, in: contentRect, context: context, font: metrics.bodyFont, alignment: .left)
+            case .scheduleNotes:
+                drawWrappedText(row.scheduleNotes, in: contentRect, context: context, font: metrics.bodyFont, alignment: .left)
+            case .notes:
+                break
+            case .image:
+                drawImageIfAvailable(imageFileName: row.imageFileName, in: contentRect, context: context, activeProjectURL: activeProjectURL, persistence: persistence)
+            }
+
+            x += column.width
+        }
+    }
+
+    private func fillPageBackground(context: CGContext, mediaBox: CGRect) {
+        context.setFillColor(NSColor.white.cgColor)
+        context.fill(mediaBox)
+    }
+
+    private func drawGrid(context: CGContext, columns: [PDFColumn], rowRect: CGRect, strokeColor: NSColor) {
+        context.setStrokeColor(strokeColor.cgColor)
+        context.setLineWidth(0.6)
+        context.stroke(rowRect)
+
+        var x = rowRect.minX
+        for column in columns.dropLast() {
+            x += column.width
+            context.move(to: CGPoint(x: x, y: rowRect.minY))
+            context.addLine(to: CGPoint(x: x, y: rowRect.maxY))
+            context.strokePath()
+        }
+    }
+
+    private func drawImageIfAvailable(
+        imageFileName: String?,
+        in rect: CGRect,
+        context: CGContext,
+        activeProjectURL: URL?,
+        persistence: ProjectPersistenceService
+    ) {
+        guard let imageFileName,
+              let activeProjectURL,
+              let imageURL = persistence.resolveAssetURL(fileName: imageFileName, in: activeProjectURL, subfolder: "Images") else {
+            return
+        }
+
+        guard let cgImage = loadCGImage(from: imageURL) else {
+            return
+        }
+
+        let drawRect = aspectFitRect(for: cgImage, in: rect)
+        context.interpolationQuality = .high
+        context.draw(cgImage, in: drawRect)
+    }
+
+    private func loadCGImage(from imageURL: URL) -> CGImage? {
+        guard let source = CGImageSourceCreateWithURL(imageURL as CFURL, nil),
+              let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+            if let nsImage = NSImage(contentsOf: imageURL) {
+                return nsImage.cgImage(forProposedRect: nil, context: nil, hints: nil)
+            }
+            return nil
+        }
+
+        return image
+    }
+
+    private func aspectFitRect(for image: CGImage, in bounds: CGRect) -> CGRect {
+        let imageWidth = CGFloat(image.width)
+        let imageHeight = CGFloat(image.height)
+        guard imageWidth > 0, imageHeight > 0 else {
+            return bounds
+        }
+
+        let widthScale = bounds.width / imageWidth
+        let heightScale = bounds.height / imageHeight
+        let scale = min(widthScale, heightScale)
+
+        let targetWidth = imageWidth * scale
+        let targetHeight = imageHeight * scale
+        let originX = bounds.minX + (bounds.width - targetWidth) / 2
+        let originY = bounds.minY + (bounds.height - targetHeight) / 2
+
+        return CGRect(x: originX, y: originY, width: targetWidth, height: targetHeight)
+    }
+
+    private func measuredTextHeight(_ text: String, width: CGFloat, font: NSFont) -> CGFloat {
+        guard width > 0 else {
+            return 0
+        }
+
+        let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let content = normalized.isEmpty ? " " : text
+        let attributed = attributedText(content, font: font, alignment: .left)
+        let framesetter = CTFramesetterCreateWithAttributedString(attributed as CFAttributedString)
+        let target = CGSize(width: width, height: .greatestFiniteMagnitude)
+        let measured = CTFramesetterSuggestFrameSizeWithConstraints(framesetter, CFRange(location: 0, length: attributed.length), nil, target, nil)
+        return ceil(max(measured.height, font.pointSize + 2))
+    }
+
+    private func drawWrappedText(_ text: String, in rect: CGRect, context: CGContext, font: NSFont, alignment: NSTextAlignment) {
+        guard rect.width > 0, rect.height > 0 else {
+            return
+        }
+
+        let attributed = attributedText(text, font: font, alignment: alignment)
+        let framesetter = CTFramesetterCreateWithAttributedString(attributed as CFAttributedString)
+        let path = CGMutablePath()
+        path.addRect(rect)
+
+        context.saveGState()
+        context.textMatrix = .identity
+
+        let frame = CTFramesetterCreateFrame(framesetter, CFRange(location: 0, length: attributed.length), path, nil)
+        CTFrameDraw(frame, context)
+        context.restoreGState()
+    }
+
+    private func drawScheduleLogos(
+        context: CGContext,
+        project: ProjectDocument,
+        metrics: PDFPageMetrics,
+        topY: CGFloat,
+        activeProjectURL: URL?,
+        persistence: ProjectPersistenceService
+    ) -> CGFloat {
+        guard let activeProjectURL else {
+            return 0
+        }
+
+        let logoImages = [project.crewInfo.productionLogoFileName, project.crewInfo.clientLogoFileName]
+            .compactMap { $0 }
+            .compactMap { fileName -> CGImage? in
+                guard let logoURL = persistence.resolveAssetURL(fileName: fileName, in: activeProjectURL, subfolder: "Logos") else {
+                    return nil
+                }
+                return loadCGImage(from: logoURL)
+            }
+
+        guard !logoImages.isEmpty else {
+            return 0
+        }
+
+        let boxWidth: CGFloat = 84
+        let boxHeight: CGFloat = 34
+        let spacing: CGFloat = 8
+        let logosWidth = (CGFloat(logoImages.count) * boxWidth) + (CGFloat(max(logoImages.count - 1, 0)) * spacing)
+        let startX = metrics.marginLeft + metrics.tableWidth - logosWidth
+        let startY = topY - boxHeight
+
+        for (index, logoImage) in logoImages.enumerated() {
+            let x = startX + CGFloat(index) * (boxWidth + spacing)
+            let logoRect = CGRect(x: x, y: startY, width: boxWidth, height: boxHeight)
+            let drawRect = aspectFitRect(for: logoImage, in: logoRect)
+            context.interpolationQuality = .high
+            context.draw(logoImage, in: drawRect)
+        }
+
+        return logosWidth
+    }
+
+    private func attributedText(_ text: String, font: NSFont, alignment: NSTextAlignment) -> NSAttributedString {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = alignment
+        paragraph.lineBreakMode = .byWordWrapping
+        paragraph.lineSpacing = 1.2
+
+        return NSAttributedString(
+            string: text,
+            attributes: [
+                .font: font,
+                .foregroundColor: NSColor.black,
+                .paragraphStyle: paragraph
+            ]
+        )
+    }
+
+    private func storyboardColumns(for metrics: PDFPageMetrics) -> [PDFColumn] {
+        [
+            PDFColumn(title: "Shot", key: .shotNumber, width: 40, alignment: .center),
+            PDFColumn(title: "Groesse", key: .size, width: 80, alignment: .left),
+            PDFColumn(title: "Beschreibung", key: .description, width: 250, alignment: .left),
+            PDFColumn(title: "Notizen", key: .notes, width: 220, alignment: .left),
+            PDFColumn(title: "Storyboard", key: .image, width: metrics.tableWidth - 590, alignment: .left)
+        ]
+    }
+
+    private func scheduleColumns(for metrics: PDFPageMetrics) -> [PDFColumn] {
+        [
+            PDFColumn(title: "Shot", key: .shotNumber, width: 56, alignment: .center),
+            PDFColumn(title: "Setup", key: .setupStart, width: 48, alignment: .center),
+            PDFColumn(title: "Start", key: .shootStart, width: 48, alignment: .center),
+            PDFColumn(title: "Ende", key: .shootEnd, width: 48, alignment: .center),
+            PDFColumn(title: "Groesse", key: .size, width: 72, alignment: .left),
+            PDFColumn(title: "Beschreibung", key: .description, width: 180, alignment: .left),
+            PDFColumn(title: "Shot-Notizen", key: .shotNotes, width: 120, alignment: .left),
+            PDFColumn(title: "Plan-Notizen", key: .scheduleNotes, width: 120, alignment: .left),
+            PDFColumn(title: "Bild", key: .image, width: metrics.tableWidth - 692, alignment: .left)
+        ]
+    }
+}
+
+private struct PDFPageMetrics {
+    let pageWidth: CGFloat
+    let pageHeight: CGFloat
+    let marginLeft: CGFloat = 28
+    let marginRight: CGFloat = 28
+    let marginTop: CGFloat = 28
+    let marginBottom: CGFloat = 28
+    let headerRowHeight: CGFloat = 22
+    let cellHorizontalPadding: CGFloat = 5
+    let cellVerticalPadding: CGFloat = 4
+    let minimumStoryboardRowHeight: CGFloat = 48
+    let minimumScheduleRowHeight: CGFloat = 40
+    let headerFont = NSFont.boldSystemFont(ofSize: 18)
+    let boldFont = NSFont.boldSystemFont(ofSize: 9)
+    let metaFont = NSFont.systemFont(ofSize: 9, weight: .regular)
+    let bodyFont = NSFont.systemFont(ofSize: 8.5, weight: .regular)
+
+    init(pageSize: CGSize) {
+        self.pageWidth = pageSize.width
+        self.pageHeight = pageSize.height
+    }
+
+    var tableWidth: CGFloat {
+        pageWidth - marginLeft - marginRight
+    }
+}
+
+private struct PDFColumn {
+    let title: String
+    let key: PDFColumnKey
+    let width: CGFloat
+    let alignment: NSTextAlignment
+}
+
+private enum PDFColumnKey {
+    case shotNumber
+    case size
+    case setupStart
+    case shootStart
+    case shootEnd
+    case description
+    case notes
+    case shotNotes
+    case scheduleNotes
+    case image
 }
 
 // MARK: - Data Models
@@ -354,8 +652,8 @@ private struct StoryboardTableRow {
 }
 
 private struct ScheduleTableRow {
-    let blockType: String
-    let shotNumber: Int?
+    let rowKind: ScheduleTableRowKind
+    let shotLabel: String
     let size: String
     let setupStart: String
     let shootStart: String
@@ -364,4 +662,10 @@ private struct ScheduleTableRow {
     let shotNotes: String
     let scheduleNotes: String
     let imageFileName: String?
+}
+
+private enum ScheduleTableRowKind {
+    case setup
+    case shot
+    case pause
 }

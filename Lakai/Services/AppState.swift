@@ -16,6 +16,8 @@ final class AppState: ObservableObject {
     private let pdfExporter = PDFExportService()
     private let scheduleCalculator = ScheduleCalculator()
     private let scriptSync = ScriptSyncService()
+    private var hasPendingReorderChanges = false
+    private var pendingReorderMode: WorkspaceMode?
 
     init() {
         refreshLibrary()
@@ -107,8 +109,54 @@ final class AppState: ObservableObject {
     }
 
     func moveItem(in mode: WorkspaceMode, from sourceIndex: Int, to destinationIndex: Int) {
-        mutateProject { project in
+        mutateProject(animated: true, syncScriptFromShots: mode == .shotlist) { project in
             project.moveItem(from: sourceIndex, to: destinationIndex, in: mode)
+        }
+    }
+
+    func moveItemLive(in mode: WorkspaceMode, from sourceIndex: Int, to destinationIndex: Int) {
+        guard var project = activeProject else {
+            return
+        }
+
+        project.moveItem(from: sourceIndex, to: destinationIndex, in: mode)
+        project.updatedAt = Date()
+        project.syncOrders()
+
+        activeProject = project
+        hasPendingReorderChanges = true
+        pendingReorderMode = mode
+    }
+
+    func commitPendingReorderChanges() {
+        guard hasPendingReorderChanges else {
+            return
+        }
+
+        guard var project = activeProject,
+              let activeProjectURL else {
+            hasPendingReorderChanges = false
+            pendingReorderMode = nil
+            return
+        }
+
+        if pendingReorderMode == .shotlist {
+            project.scriptText = scriptSync.composeScript(from: project)
+        }
+
+        project.updatedAt = Date()
+        project.syncOrders()
+
+        do {
+            let resolvedProjectURL = try persistence.renameProjectFolderIfNeeded(currentFolderURL: activeProjectURL, projectTitle: project.title)
+            try persistence.saveProject(project, to: resolvedProjectURL)
+            self.activeProjectURL = resolvedProjectURL
+            activeProject = project
+            refreshLibrary()
+            hasPendingReorderChanges = false
+            pendingReorderMode = nil
+        } catch {
+            presentError(error)
         }
     }
 
@@ -248,6 +296,22 @@ final class AppState: ObservableObject {
 
         mutateProject { project in
             project.scheduleSettings.shootStartMinutes = minutes
+        }
+    }
+
+    func updateSetupTitle(_ title: String) {
+        mutateProject { project in
+            project.scheduleSettings.setupTitle = title
+        }
+    }
+
+    func updateSetupDuration(_ text: String) {
+        guard let seconds = LakaiFormatters.parseDuration(text) else {
+            return
+        }
+
+        mutateProject { project in
+            project.scheduleSettings.setupDurationSeconds = seconds
         }
     }
 

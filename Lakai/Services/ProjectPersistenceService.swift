@@ -92,7 +92,9 @@ struct ProjectPersistenceService {
             legacyDefaultSetupSeconds = Int(settingsElement.childText(for: "defaultSetupSeconds") ?? "900") ?? 900
             project.scheduleSettings = ScheduleSettings(
                 shootDate: Self.isoDate(settingsElement.childText(for: "shootDate")) ?? Date(),
-                shootStartMinutes: Int(settingsElement.childText(for: "shootStartMinutes") ?? "480") ?? 480
+                shootStartMinutes: Int(settingsElement.childText(for: "shootStartMinutes") ?? "480") ?? 480,
+                setupTitle: settingsElement.childText(for: "setupTitle") ?? "Setup",
+                setupDurationSeconds: Int(settingsElement.childText(for: "setupDurationSeconds") ?? "900") ?? 900
             )
         }
 
@@ -180,6 +182,8 @@ struct ProjectPersistenceService {
         let scheduleSettings = XMLElement(name: "scheduleSettings")
         scheduleSettings.addChild(XMLElement(name: "shootDate", stringValue: Self.isoFormatter.string(from: project.scheduleSettings.shootDate)))
         scheduleSettings.addChild(XMLElement(name: "shootStartMinutes", stringValue: String(project.scheduleSettings.shootStartMinutes)))
+        scheduleSettings.addChild(XMLElement(name: "setupTitle", stringValue: project.scheduleSettings.setupTitle))
+        scheduleSettings.addChild(XMLElement(name: "setupDurationSeconds", stringValue: String(project.scheduleSettings.setupDurationSeconds)))
         root.addChild(scheduleSettings)
 
         let shots = XMLElement(name: "shots")

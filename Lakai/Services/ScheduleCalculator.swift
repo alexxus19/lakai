@@ -3,7 +3,7 @@ import Foundation
 struct ScheduleCalculator {
     func buildComputation(for project: ProjectDocument) -> ScheduleComputation {
         let startOfDay = project.scheduleSettings.shootStartMinutes * 60
-        var currentTime = startOfDay
+        var currentTime = startOfDay + max(project.scheduleSettings.setupDurationSeconds, 0)
         var entries: [CalculatedScheduleEntry] = []
         for block in project.orderedScheduleBlocks {
             switch block.kind {

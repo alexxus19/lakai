@@ -30,6 +30,8 @@
 ### Interaction Performance Note
 - Schedule and shotlist drag-and-drop reorder commits are applied on drop, not continuously on hover enter.
 - This keeps reorder feedback stable and avoids repeated persistence churn during pointer movement.
+- Drop insertion now targets the divider shown below the hovered card so visual indicator and final position stay aligned.
+- The drop-divider gap uses a larger centered insertion lane with eased open/close transitions and spring-based snap animation.
 
 ## Core Models
 
@@ -86,6 +88,7 @@
 
 - The engine reads the schedule order and timing settings.
 - It starts with the shoot start time.
+- It starts with a fixed setup block duration from schedule settings, then continues with ordered schedule blocks.
 - For each schedule block it calculates:
   - setup start
   - block start
@@ -106,17 +109,24 @@
 
 ### Storyboard PDF
 - Header with project title, export date, storyboard version, and shot count.
-- One or more shot cards per page.
-- Images rendered beside card content when available.
+- Landscape A4 white table layout with print-first styling.
+- Dynamic row height from wrapped text and image aspect ratio.
+- Images rendered in dedicated storyboard cells using direct asset decoding.
 
 ### Schedule PDF
 - Header with project title, export date, schedule version, and crew details.
 - Summary block for shoot date and shoot start.
-- Table-style timeline with shot number, type, setup, duration, and calculated times.
+- White table timeline with wrapped description and notes columns.
+- Dynamic row heights prevent clipped text in dense schedules.
+- Production and client logos are rendered in the schedule header when logo assets are present.
+- The exported table omits a dedicated type column; pause rows are marked in the shot column and shaded lightly.
+- Empty schedule values are emitted as empty table cells rather than placeholder dashes.
 
 ### Export Flow
 - `NSSavePanel` chooses the destination for both storyboard and schedule PDFs.
-- PDF rendering uses AppKit-hosted SwiftUI pages so imported storyboard images and logos are embedded reliably.
+- PDF rendering uses direct Core Graphics table drawing with CoreText line wrapping for crisp text output.
+- Page breaks happen only between complete rows so no row is split at the page boundary.
+- Text drawing uses native PDF coordinates so output remains correctly oriented.
 
 ## Storage Layout
 

@@ -157,6 +157,8 @@ struct CrewInfo: Codable, Hashable {
 struct ScheduleSettings: Codable, Hashable {
     var shootDate: Date = Date()
     var shootStartMinutes: Int = 8 * 60
+    var setupTitle: String = "Setup"
+    var setupDurationSeconds: Int = 15 * 60
 }
 
 struct Shot: Identifiable, Codable, Hashable {

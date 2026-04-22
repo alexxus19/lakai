@@ -46,6 +46,8 @@ struct ShotCardView: View {
                         .clipShape(Capsule())
                     }
                     .menuStyle(.borderlessButton)
+                    .buttonStyle(.plain)
+                    .tint(LakaiTheme.ink)
 
                     Spacer()
 
@@ -175,7 +177,7 @@ struct ShotCardView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(LakaiTheme.mutedInk)
+                .foregroundStyle(LakaiTheme.ink)
 
             TextField(title, text: text)
                 .textFieldStyle(.plain)
