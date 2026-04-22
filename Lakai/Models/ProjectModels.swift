@@ -169,6 +169,8 @@ struct Shot: Identifiable, Codable, Hashable {
     var imageFileName: String?
     var setupSeconds: Int = 15 * 60
     var durationSeconds: Int = 20 * 60
+    var isOptional: Bool = false
+    var backgroundColor: String? = nil
 }
 
 struct ScheduleBlock: Identifiable, Codable, Hashable {
@@ -178,6 +180,7 @@ struct ScheduleBlock: Identifiable, Codable, Hashable {
     var title: String = "Pause"
     var durationSeconds: Int = 15 * 60
     var scheduleNotes: String = ""
+    var backgroundColor: String? = nil
 }
 
 struct ProjectDocument: Identifiable, Codable {
@@ -229,6 +232,24 @@ struct ProjectDocument: Identifiable, Codable {
         }
 
         return index + 1
+    }
+
+    func displayShotNumber(for id: UUID) -> String {
+        guard let shot = shot(with: id), let index = shotOrder.firstIndex(of: id) else {
+            return "?"
+        }
+
+        if shot.isOptional {
+            let optionalNumber = shotOrder.prefix(index + 1).filter { shotID in
+                shots.first(where: { $0.id == shotID })?.isOptional == true
+            }.count
+            return "OPT_\(optionalNumber)"
+        } else {
+            let normalNumber = shotOrder.prefix(index + 1).filter { shotID in
+                shots.first(where: { $0.id == shotID })?.isOptional == false
+            }.count
+            return String(normalNumber)
+        }
     }
 
     mutating func syncOrders() {

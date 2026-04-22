@@ -62,7 +62,8 @@ struct ScriptSyncService {
                     shotID: shot.id,
                     title: "",
                     durationSeconds: 0,
-                    scheduleNotes: existingBlock?.scheduleNotes ?? ""
+                    scheduleNotes: existingBlock?.scheduleNotes ?? "",
+                    backgroundColor: existingBlock?.backgroundColor
                 )
             )
         }

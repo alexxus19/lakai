@@ -56,15 +56,20 @@ Lakai is a native macOS directing tool for creating, organizing, versioning, and
 - Single-column board of shot cards.
 - New shots can be added and removed.
 - Cards can be reordered by drag and drop.
-- Shot numbers are derived from the current order.
+- Shot numbers are derived from the current order; optional shots use "OPT_" prefix with independent counting.
 - Each shot has:
-  - Shot number
+  - Shot number (or optional marker)
   - Shot size tag from a predefined dropdown using written German shot size names
   - Description
   - One-line notes or camera move field
   - Optional storyboard image imported from disk
+  - Optional background color (6 pastel options)
+  - Optional flag that affects visibility and timing
 - A permanent 16:9 storyboard image slot on the right side of the card, with hover actions for replacing or removing the image.
-- Storyboard PDF export uses the current project state.
+- Right-click context menu on shots provides: toggle optional status, color picker, and duplicate function.
+- Optional shots display at 30% opacity for visual distinction.
+- Storyboard PDF export uses the current project state with shot background colors applied to table rows.
+- All shot properties (background color, optional status) are XML-persisted.
 
 ### Script Area
 - The mode switch includes `Skript`, `Shotlist`, and `Drehplan`.
@@ -98,8 +103,10 @@ Lakai is a native macOS directing tool for creating, organizing, versioning, and
   - Per-shot setup duration
   - Per-shot duration
 - Schedule timing is calculated based on the order, start time, per-shot setup, shot duration, and pause blocks.
+- Optional shots do not contribute to timing; schedule times remain unchanged regardless of optional shot presence.
 - In the shooting schedule, shot description and shot annotations are shown compactly as read-only card content.
 - Schedule shot cards provide a separate editable `Notizen` field for schedule-specific notes.
+- Optional shots display at 30% opacity and hide time rails (setup/shoot durations) to indicate they are not scheduled.
 - Shooting schedule PDF export uses the schedule order and increments the schedule version.
 
 ### Persistence and File Exchange
@@ -227,10 +234,38 @@ Lakai is a native macOS directing tool for creating, organizing, versioning, and
 - Drop finalization now only clears drag state (no extra reorder on drop), preventing duplicate movement at release
 - Reorder writes are now deferred: list movement is in-memory during drag, then persisted once when drag ends
 
+### Reorder Rendering Performance Pass
+- Shotlist, schedule thumbnails, and header logo images now use cached asset loading instead of synchronous per-render `NSImage(contentsOf:)` decoding
+- Reorder interactions no longer trigger draft resynchronization on every `updatedAt` change in the workspace root
+- Live reorder updates no longer touch `updatedAt` while dragging; timestamp and persistence are finalized at drag end
+
+### Cached Image Reliability Pass
+- Cached asset image loading now keys by normalized file path and refreshes with `task(id:)` so images reappear reliably after mode/page switches
+- Image tiles now show explicit loading placeholders instead of blank empty content while assets resolve
+
+### Project Archive Extension Hardening
+- Project archive save/open dialogs now target a dedicated `.lak` file type so exports no longer get `.lak.zip`
+- Archive internals remain ZIP-compatible while the visible extension stays strictly `.lak`
+
+### Shot Coloring, Optionality & Duplication (Current Pass)
+- Right-click context menu on shot cards provides three new options: Optional toggle, color picker, and duplicate
+- Color picker displays 6 pastel color circles (mint, peach, sky, rose, cream, lavender) plus a clear button
+- Shot background colors persist in XML and are reflected in both app UI (with reduced opacity) and PDF exports
+- Optional shots display at 30% opacity in shotlist and schedule views for visual distinction
+- Optional shot numbering uses "OPT_" prefix with separate counting (e.g., "1", "2", "OPT_1", "3", "OPT_2")
+- Optional shots are excluded from timing calculations in the schedule; times do not shift based on optional content
+- Schedule cards hide time rails (Setup/Dreh durations) when shot is marked optional
+- Shot duplication preserves all properties and automatically creates corresponding schedule block
+- Pause blocks also support background coloring via context menu (when implemented)
+- All new properties (isOptional, backgroundColor) are XML-persisted and survive project open/close cycles
+
 ## Acceptance Baseline
 
 - A new project can be created from the overview.
 - Shots can be added, reordered, edited, tagged, and illustrated.
+- Shots can be marked optional, colored, or duplicated via right-click context menu.
+- Optional shots render at reduced opacity and exclude from timing calculations.
+- Shot backgrounds and optional status persist in XML and appear in PDF exports.
 - Script text can generate and regenerate the same shotlist structure.
 - The shooting schedule can reorder the same shots independently.
 - Schedule timing updates when durations or lunch settings change.

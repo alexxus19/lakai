@@ -53,7 +53,7 @@ Three integrated workspace modes—**Skript**, **Shotlist**, and **Drehplan**—
   - Export date and metadata included
 
 - **Project Packaging**
-  - ZIP-based import/export for archiving
+  - `.lak` archive import/export (ZIP internals, Lakai file extension)
   - Full project folder with images and metadata
   - Portable across computers and teams
 
@@ -179,7 +179,7 @@ Lakai/
 ### Exporting
 - **Storyboard PDF** – Export current shotlist as versioned PDF (increments storyboard version)
 - **Schedule PDF** – Export current schedule as versioned PDF (increments schedule version)
-- **Project ZIP** – Package entire project with images for sharing or archiving
+- **Projekt (.lak)** – Package entire project with images for sharing or archiving
 
 ---
 

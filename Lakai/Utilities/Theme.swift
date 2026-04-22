@@ -14,6 +14,16 @@ enum LakaiTheme {
     static let accentStrong = Color(red: 0.25, green: 0.46, blue: 0.62)
     static let success = Color(red: 0.33, green: 0.57, blue: 0.45)
     static let warning = Color(red: 0.70, green: 0.52, blue: 0.30)
+
+    // Shot card background colors (6 subtly different, readable colors)
+    static let shotColors: [(hex: String, color: Color)] = [
+        ("C8E6C9", Color(red: 0.78, green: 0.90, blue: 0.79)),  // Pale mint
+        ("FFCCBC", Color(red: 1.00, green: 0.80, blue: 0.74)),  // Soft peach
+        ("B3E5FC", Color(red: 0.70, green: 0.90, blue: 0.99)),  // Light sky
+        ("F8BBD0", Color(red: 0.97, green: 0.73, blue: 0.82)),  // Soft rose
+        ("FFF9C4", Color(red: 1.00, green: 0.97, blue: 0.77)),  // Warm cream
+        ("D1C4E9", Color(red: 0.82, green: 0.77, blue: 0.91))   // Soft lavender
+    ]
 }
 
 

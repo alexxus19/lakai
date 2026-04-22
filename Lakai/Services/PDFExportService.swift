@@ -13,7 +13,8 @@ struct PDFExportService {
                 size: shot.size.title,
                 description: shot.descriptionText,
                 notes: shot.notes,
-                imageFileName: shot.imageFileName
+                imageFileName: shot.imageFileName,
+                backgroundColor: shot.backgroundColor
             )
         }
 
@@ -43,7 +44,8 @@ struct PDFExportService {
                 description: project.scheduleSettings.setupTitle,
                 shotNotes: "",
                 scheduleNotes: "",
-                imageFileName: nil
+                imageFileName: nil,
+                backgroundColor: nil
             )
         ]
 
@@ -59,7 +61,8 @@ struct PDFExportService {
                 description: isPause ? entry.block.title : (entry.shot?.descriptionText ?? ""),
                 shotNotes: entry.shot?.notes ?? "",
                 scheduleNotes: entry.block.scheduleNotes,
-                imageFileName: entry.shot?.imageFileName
+                imageFileName: entry.shot?.imageFileName,
+                backgroundColor: isPause ? entry.block.backgroundColor : entry.shot?.backgroundColor
             )
         })
 
@@ -313,8 +316,15 @@ struct PDFExportService {
         persistence: ProjectPersistenceService
     ) {
         let rowRect = CGRect(x: metrics.marginLeft, y: topY - rowHeight, width: metrics.tableWidth, height: rowHeight)
-        context.setFillColor(NSColor.white.cgColor)
+        
+        // Set fill color based on backgroundColor
+        if let bgHex = row.backgroundColor, let rgbColor = hexToRGB(bgHex) {
+            context.setFillColor(rgbColor.cgColor)
+        } else {
+            context.setFillColor(NSColor.white.cgColor)
+        }
         context.fill(rowRect)
+        
         drawGrid(context: context, columns: columns, rowRect: rowRect, strokeColor: NSColor(white: 0.72, alpha: 1))
 
         var x = metrics.marginLeft
@@ -357,12 +367,17 @@ struct PDFExportService {
         persistence: ProjectPersistenceService
     ) {
         let rowRect = CGRect(x: metrics.marginLeft, y: topY - rowHeight, width: metrics.tableWidth, height: rowHeight)
+        
         let fillColor: NSColor
-        switch row.rowKind {
-        case .pause:
-            fillColor = NSColor(white: 0.94, alpha: 1)
-        case .setup, .shot:
-            fillColor = .white
+        if let bgHex = row.backgroundColor, let rgbColor = hexToRGB(bgHex) {
+            fillColor = rgbColor
+        } else {
+            switch row.rowKind {
+            case .pause:
+                fillColor = NSColor(white: 0.94, alpha: 1)
+            case .setup, .shot:
+                fillColor = .white
+            }
         }
 
         context.setFillColor(fillColor.cgColor)
@@ -409,6 +424,21 @@ struct PDFExportService {
     private func fillPageBackground(context: CGContext, mediaBox: CGRect) {
         context.setFillColor(NSColor.white.cgColor)
         context.fill(mediaBox)
+    }
+
+    private func hexToRGB(_ hex: String) -> NSColor? {
+        let trimmed = hex.trimmingCharacters(in: .whitespaces).uppercased()
+        guard trimmed.count == 6 else { return nil }
+
+        let scanner = Scanner(string: trimmed)
+        var rgb: UInt64 = 0
+        guard scanner.scanHexInt64(&rgb) else { return nil }
+
+        let red = CGFloat((rgb >> 16) & 0xFF) / 255.0
+        let green = CGFloat((rgb >> 8) & 0xFF) / 255.0
+        let blue = CGFloat(rgb & 0xFF) / 255.0
+
+        return NSColor(calibratedRed: red, green: green, blue: blue, alpha: 1.0)
     }
 
     private func drawGrid(context: CGContext, columns: [PDFColumn], rowRect: CGRect, strokeColor: NSColor) {
@@ -649,6 +679,7 @@ private struct StoryboardTableRow {
     let description: String
     let notes: String
     let imageFileName: String?
+    let backgroundColor: String?
 }
 
 private struct ScheduleTableRow {
@@ -662,6 +693,7 @@ private struct ScheduleTableRow {
     let shotNotes: String
     let scheduleNotes: String
     let imageFileName: String?
+    let backgroundColor: String?
 }
 
 private enum ScheduleTableRowKind {

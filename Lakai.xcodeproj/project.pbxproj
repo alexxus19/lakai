@@ -41,6 +41,7 @@
 		10000000000000000000010D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		10000000000000000000010E /* ScriptSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptSyncService.swift; sourceTree = "<group>"; };
 		10000000000000000000010F /* ScriptTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptTextEditor.swift; sourceTree = "<group>"; };
+		100000000000000000000115 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -74,6 +75,7 @@
 			isa = PBXGroup;
 			children = (
 				100000000000000000000101 /* LakaiApp.swift */,
+				100000000000000000000115 /* Info.plist */,
 				100000000000000000000005 /* Models */,
 				100000000000000000000006 /* Services */,
 				100000000000000000000007 /* Views */,
@@ -261,9 +263,8 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = NO;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Lakai;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Lakai/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -288,9 +289,8 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = NO;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Lakai;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Lakai/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

@@ -12,24 +12,39 @@ struct ScheduleCalculator {
                     continue
                 }
 
-                let setupStart = currentTime
-                let startTime = currentTime + shot.setupSeconds
-                let endTime = startTime + shot.durationSeconds
-                let nextAvailable = endTime
-
-                entries.append(
-                    CalculatedScheduleEntry(
-                        block: block,
-                        shot: shot,
-                        shotNumber: project.shotNumber(for: shotID),
-                        setupStart: setupStart,
-                        startTime: startTime,
-                        endTime: endTime,
-                        nextAvailable: nextAvailable
+                if shot.isOptional {
+                    // Optional shots don't contribute to timing calculation
+                    entries.append(
+                        CalculatedScheduleEntry(
+                            block: block,
+                            shot: shot,
+                            shotNumber: project.shotNumber(for: shotID),
+                            setupStart: nil,
+                            startTime: currentTime,
+                            endTime: currentTime,
+                            nextAvailable: currentTime
+                        )
                     )
-                )
+                } else {
+                    let setupStart = currentTime
+                    let startTime = currentTime + shot.setupSeconds
+                    let endTime = startTime + shot.durationSeconds
+                    let nextAvailable = endTime
 
-                currentTime = nextAvailable
+                    entries.append(
+                        CalculatedScheduleEntry(
+                            block: block,
+                            shot: shot,
+                            shotNumber: project.shotNumber(for: shotID),
+                            setupStart: setupStart,
+                            startTime: startTime,
+                            endTime: endTime,
+                            nextAvailable: nextAvailable
+                        )
+                    )
+
+                    currentTime = nextAvailable
+                }
             case .pause:
                 let endTime = currentTime + block.durationSeconds
                 entries.append(

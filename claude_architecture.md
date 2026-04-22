@@ -136,7 +136,8 @@ Each project folder contains:
 - `Images/`
 - `Logos/`
 
-ZIP import and export operate on the full project folder.
+Project archive import and export operate on the full project folder.
+The visible archive extension is `.lak`; the container format remains ZIP-compatible internally.
 
 ## Design Principles
 

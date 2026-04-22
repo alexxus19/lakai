@@ -107,7 +107,9 @@ struct ProjectPersistenceService {
                     notes: shotElement.childText(for: "notes") ?? "",
                     imageFileName: shotElement.childText(for: "imageFileName"),
                     setupSeconds: Int(shotElement.childText(for: "setupSeconds") ?? String(legacyDefaultSetupSeconds)) ?? legacyDefaultSetupSeconds,
-                    durationSeconds: Int(shotElement.childText(for: "durationSeconds") ?? "1200") ?? 1200
+                    durationSeconds: Int(shotElement.childText(for: "durationSeconds") ?? "1200") ?? 1200,
+                    isOptional: shotElement.childText(for: "isOptional") == "true",
+                    backgroundColor: shotElement.childText(for: "backgroundColor")
                 )
             }
         }
@@ -124,7 +126,8 @@ struct ProjectPersistenceService {
                     shotID: UUID(uuidString: blockElement.childText(for: "shotID") ?? ""),
                     title: blockElement.childText(for: "title") ?? "Pause",
                     durationSeconds: Int(blockElement.childText(for: "durationSeconds") ?? "900") ?? 900,
-                    scheduleNotes: blockElement.childText(for: "scheduleNotes") ?? ""
+                    scheduleNotes: blockElement.childText(for: "scheduleNotes") ?? "",
+                    backgroundColor: blockElement.childText(for: "backgroundColor")
                 )
             }
         } else {
@@ -200,6 +203,8 @@ struct ProjectPersistenceService {
             shotElement.addChild(XMLElement(name: "imageFileName", stringValue: shot.imageFileName))
             shotElement.addChild(XMLElement(name: "setupSeconds", stringValue: String(shot.setupSeconds)))
             shotElement.addChild(XMLElement(name: "durationSeconds", stringValue: String(shot.durationSeconds)))
+            shotElement.addChild(XMLElement(name: "isOptional", stringValue: shot.isOptional ? "true" : "false"))
+            shotElement.addChild(XMLElement(name: "backgroundColor", stringValue: shot.backgroundColor))
             shots.addChild(shotElement)
         }
         root.addChild(shots)
@@ -221,6 +226,7 @@ struct ProjectPersistenceService {
             blockElement.addChild(XMLElement(name: "title", stringValue: block.title))
             blockElement.addChild(XMLElement(name: "durationSeconds", stringValue: String(block.durationSeconds)))
             blockElement.addChild(XMLElement(name: "scheduleNotes", stringValue: block.scheduleNotes))
+            blockElement.addChild(XMLElement(name: "backgroundColor", stringValue: block.backgroundColor))
             scheduleBlocks.addChild(blockElement)
         }
         root.addChild(scheduleBlocks)

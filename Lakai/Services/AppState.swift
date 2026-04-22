@@ -18,6 +18,7 @@ final class AppState: ObservableObject {
     private let scriptSync = ScriptSyncService()
     private var hasPendingReorderChanges = false
     private var pendingReorderMode: WorkspaceMode?
+    private let lakArchiveType = UTType("com.lakai.archive") ?? .zip
 
     init() {
         refreshLibrary()
@@ -120,8 +121,6 @@ final class AppState: ObservableObject {
         }
 
         project.moveItem(from: sourceIndex, to: destinationIndex, in: mode)
-        project.updatedAt = Date()
-        project.syncOrders()
 
         activeProject = project
         hasPendingReorderChanges = true
@@ -368,7 +367,7 @@ final class AppState: ObservableObject {
         }
 
         let panel = NSSavePanel()
-        panel.allowedContentTypes = [.zip]
+        panel.allowedContentTypes = [lakArchiveType]
         panel.nameFieldStringValue = "\(activeProject.title.fileNameSafe).lak"
 
         guard panel.runModal() == .OK, let destinationURL = panel.url else {
@@ -383,7 +382,7 @@ final class AppState: ObservableObject {
     }
 
     func importProjectArchive() {
-        guard let archiveURL = pickFile(allowedTypes: [.zip, UTType(filenameExtension: "lak") ?? .zip]) else {
+        guard let archiveURL = pickFile(allowedTypes: [lakArchiveType]) else {
             return
         }
 
@@ -437,6 +436,48 @@ final class AppState: ObservableObject {
         }
 
         return scheduleCalculator.buildComputation(for: activeProject)
+    }
+
+    func toggleShotOptional(_ id: UUID) {
+        mutateProject { project in
+            project.updateShot(id: id) { $0.isOptional.toggle() }
+        }
+    }
+
+    func setShotBackgroundColor(_ id: UUID, color: String?) {
+        mutateProject { project in
+            project.updateShot(id: id) { $0.backgroundColor = color }
+        }
+    }
+
+    func setScheduleBlockBackgroundColor(_ id: UUID, color: String?) {
+        mutateProject { project in
+            project.updateScheduleBlock(id: id) { $0.backgroundColor = color }
+        }
+    }
+
+    func duplicateShot(_ id: UUID) {
+        mutateProject(animated: true) { project in
+            guard let sourceShot = project.shot(with: id),
+                  let sourceIndex = project.shotOrder.firstIndex(of: id) else {
+                return
+            }
+
+            var newShot = sourceShot
+            newShot.id = UUID()
+
+            project.shots.append(newShot)
+            project.shotOrder.insert(newShot.id, at: sourceIndex + 1)
+
+            let newBlock = ScheduleBlock(
+                kind: .shot,
+                shotID: newShot.id,
+                title: "",
+                durationSeconds: 0,
+                scheduleNotes: ""
+            )
+            project.scheduleBlocks.append(newBlock)
+        }
     }
 
     private func mutateProject(animated: Bool = false, syncScriptFromShots: Bool = true, _ mutate: (inout ProjectDocument) -> Void) {

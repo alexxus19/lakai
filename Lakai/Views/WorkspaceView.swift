@@ -46,9 +46,6 @@ struct WorkspaceView: View {
                 syncDrafts(project)
                 installDragStateResetMonitor()
             }
-            .onChange(of: project.updatedAt) { _, _ in
-                syncDrafts(project)
-            }
             .onDisappear {
                 removeDragStateResetMonitor()
             }
@@ -249,13 +246,16 @@ struct WorkspaceView: View {
                     ForEach(Array(project.orderedShots.enumerated()), id: \.element.id) { index, shot in
                         VStack(spacing: 0) {
                             ShotCardView(
-                                shotNumber: index + 1,
+                                shotNumber: project.displayShotNumber(for: shot.id),
                                 shot: shot,
                                 imageURL: appState.imageURL(for: shot),
                                 mode: .shotlist,
                                 onDelete: { appState.deleteShot(shot.id) },
                                 onImportImage: { appState.importShotImage(for: shot.id) },
                                 onRemoveImage: { appState.clearShotImage(shot.id) },
+                                onToggleOptional: { appState.toggleShotOptional(shot.id) },
+                                onSetBackgroundColor: { appState.setShotBackgroundColor(shot.id, color: $0) },
+                                onDuplicate: { appState.duplicateShot(shot.id) },
                                 sizeBinding: Binding(
                                     get: { appState.activeProject?.shot(with: shot.id)?.size ?? .ms },
                                     set: { appState.updateShotSize(shot.id, size: $0) }
@@ -271,6 +271,7 @@ struct WorkspaceView: View {
                                 setupBinding: .constant(""),
                                 durationBinding: .constant("")
                             )
+                            .opacity(shot.isOptional ? 0.3 : 1.0)
                             .scaleEffect(draggedShotID == shot.id ? 1.01 : 1)
                             .overlay(reorderCardOverlay(isDragged: draggedShotID == shot.id))
                             .zIndex(draggedShotID == shot.id ? 2 : 0)
@@ -454,7 +455,9 @@ struct WorkspaceView: View {
 
     private func scheduleShotCard(for block: ScheduleBlock, shot: Shot, entry: CalculatedScheduleEntry, isLastBlock: Bool) -> some View {
         HStack(alignment: .top, spacing: 10) {
-            scheduleTimeRail(for: entry)
+            if !shot.isOptional {
+                scheduleTimeRail(for: entry)
+            }
 
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 8) {
@@ -538,6 +541,7 @@ struct WorkspaceView: View {
             .clipShape(RoundedRectangle(cornerRadius: 18))
             .overlay(RoundedRectangle(cornerRadius: 18).stroke(LakaiTheme.panelBorder, lineWidth: 1))
         }
+        .opacity(shot.isOptional ? 0.3 : 1.0)
         .scaleEffect(draggedScheduleBlockID == entry.id ? 1.01 : 1)
         .overlay(reorderCardOverlay(isDragged: draggedScheduleBlockID == entry.id))
         .zIndex(draggedScheduleBlockID == entry.id ? 2 : 0)
@@ -701,17 +705,20 @@ struct WorkspaceView: View {
     }
 
     private func scheduleImageView(for shot: Shot) -> some View {
-        ZStack {
+        let imageURL = appState.imageURL(for: shot)
+
+        return ZStack {
             RoundedRectangle(cornerRadius: 14)
                 .fill(LakaiTheme.canvasAlt.opacity(0.75))
 
-            if let imageURL = appState.imageURL(for: shot),
-               let image = NSImage(contentsOf: imageURL) {
-                Image(nsImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 144, height: 84)
-                    .clipped()
+            if let imageURL {
+                CachedAssetImageView(imageURL: imageURL, contentMode: .fill) {
+                    Image(systemName: "photo")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(LakaiTheme.mutedInk)
+                }
+                .frame(width: 144, height: 84)
+                .clipped()
             } else {
                 Image(systemName: "photo")
                     .font(.system(size: 16, weight: .medium))
@@ -779,13 +786,14 @@ struct WorkspaceView: View {
 
     private func logoControls(kind: LogoKind, imageURL: URL?) -> some View {
         HStack(spacing: 6) {
-            if let imageURL, let image = NSImage(contentsOf: imageURL) {
-                Image(nsImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 26, height: 26)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(LakaiTheme.panelBorder, lineWidth: 1))
+            if let imageURL {
+                CachedAssetImageView(imageURL: imageURL, contentMode: .fit) {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(LakaiTheme.accentSoft)
+                }
+                .frame(width: 26, height: 26)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(LakaiTheme.panelBorder, lineWidth: 1))
             }
 
             Button(kind == .client ? "Kundenlogo" : "Produktionslogo") {
