@@ -312,6 +312,11 @@ Lakai is a native macOS directing tool for creating, organizing, versioning, and
 - Only one shot card context menu can be open at a time; opening another card menu automatically replaces the previous one
 - Shotlist context menu rendering now lives on a global layer above the full shotlist surface (bound by shot card ID), so menu placement is no longer clipped by individual card bounds
 - Tapping anywhere in the shotlist surface outside the menu now closes the currently open shot context menu
+- Right-clicking another shot while a menu is open now immediately switches the active menu target to that shot (single-menu behavior remains intact)
+
+### Shot Card Image Drop Support
+- Storyboard image areas in shot cards now accept direct drag-and-drop of image files from Finder/Desktop
+- If a shot already has an image, dropping a new file first prompts for confirmation before replacement
 
 ## Acceptance Baseline
 

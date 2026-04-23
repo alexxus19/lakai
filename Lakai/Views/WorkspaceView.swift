@@ -270,6 +270,7 @@ struct WorkspaceView: View {
                                     mode: .shotlist,
                                     onDelete: { appState.deleteShot(shot.id) },
                                     onImportImage: { appState.importShotImage(for: shot.id) },
+                                    onImportImageFromURL: { appState.importShotImage(for: shot.id, from: $0) },
                                     onRemoveImage: { appState.clearShotImage(shot.id) },
                                     onToggleOptional: { appState.toggleShotOptional(shot.id) },
                                     onSetBackgroundColor: { appState.setShotBackgroundColor(shot.id, color: $0) },
@@ -334,16 +335,6 @@ struct WorkspaceView: View {
                     }
                     .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.88), value: draggedShotID)
                 }
-            }
-
-            if activeShotCardMenuID != nil {
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        closeShotCardMenu()
-                        dismissActiveInput()
-                    }
-                    .zIndex(80)
             }
 
             if let menuShot = activeMenuShot(project: project), activeShotCardMenuID != nil {

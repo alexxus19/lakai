@@ -230,8 +230,16 @@ final class AppState: ObservableObject {
             return
         }
 
+        importShotImage(for: id, from: pickedURL)
+    }
+
+    func importShotImage(for id: UUID, from sourceURL: URL) {
+        guard let activeProjectURL else {
+            return
+        }
+
         do {
-            let fileName = try persistence.copyAsset(from: pickedURL, toProjectFolder: activeProjectURL, subfolder: "Images")
+            let fileName = try persistence.copyAsset(from: sourceURL, toProjectFolder: activeProjectURL, subfolder: "Images")
             mutateProject { project in
                 project.updateShot(id: id) { $0.imageFileName = fileName }
             }

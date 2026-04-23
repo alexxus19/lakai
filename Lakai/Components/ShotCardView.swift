@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 private enum AssetImageCache {
     static let shared: NSCache<NSURL, NSImage> = {
@@ -147,6 +148,7 @@ struct ShotCardView: View {
     let mode: WorkspaceMode
     let onDelete: () -> Void
     let onImportImage: () -> Void
+    let onImportImageFromURL: (URL) -> Void
     let onRemoveImage: () -> Void
     let onToggleOptional: () -> Void
     let onSetBackgroundColor: (String?) -> Void
@@ -159,6 +161,9 @@ struct ShotCardView: View {
     let onContextMenuRequest: (UUID, CGPoint) -> Void
 
     @State private var isHoveringImage = false
+    @State private var isImageDropTarget = false
+    @State private var pendingDroppedImageURL: URL?
+    @State private var isReplaceImageAlertPresented = false
     @State private var isSizePickerPresented = false
 
     var body: some View {
@@ -212,6 +217,19 @@ struct ShotCardView: View {
         .shadow(color: Color.black.opacity(0.035), radius: 12, x: 0, y: 6)
         .onTapGesture {
             NSApp.keyWindow?.makeFirstResponder(nil)
+        }
+        .alert("Bestehendes Bild ersetzen?", isPresented: $isReplaceImageAlertPresented) {
+            Button("Abbrechen", role: .cancel) {
+                pendingDroppedImageURL = nil
+            }
+            Button("Ersetzen", role: .destructive) {
+                if let pendingDroppedImageURL {
+                    onImportImageFromURL(pendingDroppedImageURL)
+                }
+                pendingDroppedImageURL = nil
+            }
+        } message: {
+            Text("Diese Shot-Karte hat bereits ein Bild. Soll es durch die abgelegte Datei ersetzt werden?")
         }
     }
 
@@ -361,6 +379,13 @@ struct ShotCardView: View {
         .frame(width: 232, height: 130)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(LakaiTheme.panelBorder, lineWidth: 1))
+        .overlay {
+            if isImageDropTarget {
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(LakaiTheme.accent, style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
+                    .background(RoundedRectangle(cornerRadius: 16).fill(LakaiTheme.accent.opacity(0.16)))
+            }
+        }
         .contentShape(RoundedRectangle(cornerRadius: 16))
         .onHover { hovering in
             guard mode == .shotlist else {
@@ -368,6 +393,9 @@ struct ShotCardView: View {
             }
 
             isHoveringImage = hovering
+        }
+        .onDrop(of: [UTType.fileURL], isTargeted: $isImageDropTarget) { providers in
+            handleImageDrop(providers)
         }
 
         if mode == .shotlist {
@@ -380,6 +408,50 @@ struct ShotCardView: View {
         }
 
         return AnyView(content)
+    }
+
+    private func handleImageDrop(_ providers: [NSItemProvider]) -> Bool {
+        guard mode == .shotlist else {
+            return false
+        }
+
+        guard let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }) else {
+            return false
+        }
+
+        provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+            var droppedURL: URL?
+
+            if let data = item as? Data,
+               let url = URL(dataRepresentation: data, relativeTo: nil) {
+                droppedURL = url
+            } else if let url = item as? URL {
+                droppedURL = url
+            } else if let string = item as? String,
+                      let url = URL(string: string) {
+                droppedURL = url
+            }
+
+            guard let droppedURL else {
+                return
+            }
+
+            let fileType = UTType(filenameExtension: droppedURL.pathExtension)
+            guard fileType?.conforms(to: .image) == true else {
+                return
+            }
+
+            DispatchQueue.main.async {
+                if imageURL != nil {
+                    pendingDroppedImageURL = droppedURL
+                    isReplaceImageAlertPresented = true
+                } else {
+                    onImportImageFromURL(droppedURL)
+                }
+            }
+        }
+
+        return true
     }
 
     private func overlayButton(title: String, action: @escaping () -> Void) -> some View {
