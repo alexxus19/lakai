@@ -10,7 +10,7 @@ private enum AssetImageCache {
     }()
 }
 
-private struct RightClickCaptureView: NSViewRepresentable {
+struct RightClickCaptureView: NSViewRepresentable {
     let onRightClick: (CGPoint) -> Void
 
     func makeCoordinator() -> Coordinator {

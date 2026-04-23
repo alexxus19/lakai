@@ -10,6 +10,14 @@ private struct ShotCardFramePreferenceKey: PreferenceKey {
     }
 }
 
+private struct ScheduleBlockFramePreferenceKey: PreferenceKey {
+    static var defaultValue: [UUID: CGRect] = [:]
+
+    static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    }
+}
+
 struct WorkspaceView: View {
     @ObservedObject var appState: AppState
     private let scriptSync = ScriptSyncService()
@@ -23,10 +31,20 @@ struct WorkspaceView: View {
     @State private var setupDurationDraft: String = ""
     @State private var isShootDatePickerPresented = false
     @State private var isShootTimePickerPresented = false
+    @State private var isSetupDatePickerPresented = false
+    @State private var isSetupTimePickerPresented = false
+    @State private var dayHeaderDatePickerID: UUID? = nil
+    @State private var dayHeaderTimePickerID: UUID? = nil
+    @State private var dayHeaderStartTimeDrafts: [UUID: String] = [:]
     @State private var activeShotCardMenuID: UUID?
     @State private var activeShotCardMenuPosition: CGPoint = .zero
     @State private var isShotColorSectionExpanded = false
     @State private var shotCardFrames: [UUID: CGRect] = [:]
+    @State private var activeScheduleMenuBlockID: UUID? = nil
+    @State private var activeScheduleMenuPosition: CGPoint = .zero
+    @State private var isScheduleColorSectionExpanded = false
+    @State private var scheduleBlockFrames: [UUID: CGRect] = [:]
+    @State private var dayHeaderSetupDurationDrafts: [UUID: String] = [:]
 
     private let dropGapHeight: CGFloat = 20
 
@@ -113,41 +131,6 @@ struct WorkspaceView: View {
             }
 
             HStack(alignment: .center, spacing: 10) {
-                compactDateButton(title: "Drehtag", value: LakaiFormatters.shootDate.string(from: project.scheduleSettings.shootDate), isPresented: $isShootDatePickerPresented) {
-                    DatePicker(
-                        "Drehtag",
-                        selection: Binding(
-                            get: { project.scheduleSettings.shootDate },
-                            set: {
-                                appState.updateShootDate($0)
-                                isShootDatePickerPresented = false
-                            }
-                        ),
-                        displayedComponents: .date
-                    )
-                    .datePickerStyle(.graphical)
-                    .labelsHidden()
-                    .padding(10)
-                    .frame(width: 280)
-                }
-
-                compactDateButton(title: "Drehstart", value: LakaiFormatters.timeString(from: project.scheduleSettings.shootStartMinutes * 60), isPresented: $isShootTimePickerPresented) {
-                    DatePicker(
-                        "Drehstart",
-                        selection: Binding(
-                            get: { date(fromMinutes: project.scheduleSettings.shootStartMinutes, on: project.scheduleSettings.shootDate) },
-                            set: {
-                                appState.updateShootStart($0)
-                                isShootTimePickerPresented = false
-                            }
-                        ),
-                        displayedComponents: .hourAndMinute
-                    )
-                    .labelsHidden()
-                    .padding(10)
-                    .frame(width: 160)
-                }
-
                 compactField("Regie", value: project.crewInfo.director) { appState.updateCrewValue($0, at: \.director) }
                 compactField("1st AD", value: project.crewInfo.firstAD) { appState.updateCrewValue($0, at: \.firstAD) }
                 compactField("Producer", value: project.crewInfo.producer) { appState.updateCrewValue($0, at: \.producer) }
@@ -338,6 +321,12 @@ struct WorkspaceView: View {
             }
 
             if let menuShot = activeMenuShot(project: project), activeShotCardMenuID != nil {
+                Color.clear
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
+                    .onTapGesture { closeShotCardMenu() }
+                    .zIndex(99)
+
                 globalShotCardMenu(for: menuShot)
                     .offset(x: activeShotCardMenuPosition.x + 6, y: activeShotCardMenuPosition.y + 6)
                     .zIndex(100)
@@ -376,6 +365,88 @@ struct WorkspaceView: View {
     private func closeShotCardMenu() {
         activeShotCardMenuID = nil
         isShotColorSectionExpanded = false
+    }
+
+    private func openScheduleCardMenu(blockID: UUID, localPoint: CGPoint) {
+        guard let frame = scheduleBlockFrames[blockID] else { return }
+        activeScheduleMenuPosition = CGPoint(x: frame.minX + localPoint.x, y: frame.minY + localPoint.y)
+        activeScheduleMenuBlockID = blockID
+        isScheduleColorSectionExpanded = false
+    }
+
+    private func closeScheduleCardMenu() {
+        activeScheduleMenuBlockID = nil
+        isScheduleColorSectionExpanded = false
+    }
+
+    private func globalScheduleCardMenu(for shot: Shot, blockID: UUID) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            globalMenuButton(
+                title: shot.isOptional ? "Als normal markieren" : "Als optional markieren",
+                systemImage: shot.isOptional ? "checkmark.circle.fill" : "circle"
+            ) {
+                appState.toggleShotOptional(shot.id)
+                closeScheduleCardMenu()
+            }
+
+            globalMenuButton(
+                title: isScheduleColorSectionExpanded ? "Farbtoene ausblenden" : "Farbtoene anzeigen",
+                systemImage: "paintpalette"
+            ) {
+                withAnimation(.easeInOut(duration: 0.14)) {
+                    isScheduleColorSectionExpanded.toggle()
+                }
+            }
+
+            if isScheduleColorSectionExpanded {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(LakaiTheme.shotColors, id: \.hex) { item in
+                        Button {
+                            appState.setShotBackgroundColor(shot.id, color: item.hex)
+                            closeScheduleCardMenu()
+                        } label: {
+                            HStack(spacing: 8) {
+                                Circle()
+                                    .fill(item.color)
+                                    .frame(width: 10, height: 10)
+                                Text(colorToneName(for: item.hex))
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(LakaiTheme.ink)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(LakaiTheme.panel.opacity(0.9))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Button {
+                        appState.setShotBackgroundColor(shot.id, color: nil)
+                        closeScheduleCardMenu()
+                    } label: {
+                        Label("Farbton entfernen", systemImage: "xmark.circle")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(LakaiTheme.ink)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(LakaiTheme.panel.opacity(0.9))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.leading, 20)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .padding(8)
+        .frame(width: 210)
+        .background(LakaiTheme.panelElevated.opacity(0.98))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(LakaiTheme.panelBorder, lineWidth: 1))
+        .shadow(color: Color.black.opacity(0.25), radius: 16, x: 0, y: 8)
     }
 
     private func activeMenuShot(project: ProjectDocument) -> Shot? {
@@ -499,7 +570,30 @@ struct WorkspaceView: View {
         let entryLookup = Dictionary(uniqueKeysWithValues: (computation?.entries ?? []).map { ($0.id, $0) })
         let orderedBlocks = project.orderedScheduleBlocks
 
-        return ScrollView {
+        // Compute the first .shot block per day segment (including shots before any dayHeader)
+        var firstShotBlockIDs: Set<UUID> = []
+        var expectingFirstShot = true
+        for block in orderedBlocks {
+            if block.kind == .dayHeader {
+                expectingFirstShot = true
+            } else if block.kind == .shot {
+                if expectingFirstShot {
+                    firstShotBlockIDs.insert(block.id)
+                    expectingFirstShot = false
+                }
+            }
+            // .pause blocks don't break the "first shot" chain
+        }
+
+        // Assign TAG numbers: setupCard = TAG 1, each dayHeader increments from 2
+        var dayCount = 1
+        var dayHeaderNumbers: [UUID: Int] = [:]
+        for block in orderedBlocks where block.kind == .dayHeader {
+            dayCount += 1
+            dayHeaderNumbers[block.id] = dayCount
+        }
+
+        let scheduleContent = ScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("Drehplan")
@@ -510,6 +604,14 @@ struct WorkspaceView: View {
 
                     Button("Pause hinzufügen") {
                         appState.addPauseBlock()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .tint(LakaiTheme.accent)
+                    .foregroundStyle(LakaiTheme.ink)
+
+                    Button("Drehtag hinzufügen") {
+                        appState.addDayBlock()
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
@@ -527,22 +629,61 @@ struct WorkspaceView: View {
                 LazyVStack(spacing: 10) {
                     ForEach(orderedBlocks, id: \.id) { block in
                         VStack(spacing: 0) {
-                            if block.kind == .pause {
+                            if block.kind == .dayHeader {
+                                dayHeaderCard(for: block, dayNumber: dayHeaderNumbers[block.id] ?? 2)
+                            } else if block.kind == .pause {
                                 pauseCard(for: block, entry: entryLookup[block.id])
                             } else if let shotID = block.shotID,
                                       let shot = project.shot(with: shotID),
                                       let entry = entryLookup[block.id] {
-                                scheduleShotCard(for: block, shot: shot, entry: entry, isLastBlock: orderedBlocks.last?.id == block.id)
+                                scheduleShotCard(for: block, shot: shot, entry: entry, isLastBlock: orderedBlocks.last?.id == block.id, isFirstShot: firstShotBlockIDs.contains(block.id))
+                                    .background(
+                                        GeometryReader { proxy in
+                                            Color.clear.preference(
+                                                key: ScheduleBlockFramePreferenceKey.self,
+                                                value: [block.id: proxy.frame(in: .named("scheduleContextLayer"))]
+                                            )
+                                        }
+                                    )
                             }
                         }
                     }
                 }
                 .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.88), value: draggedScheduleBlockID)
             }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                closeScheduleCardMenu()
+                dismissActiveInput()
+            }
         }
         .onDrop(of: [UTType.text], isTargeted: nil) { _ in
             resetDragState()
             return true
+        }
+
+        return ZStack(alignment: .topLeading) {
+            scheduleContent
+
+            if activeScheduleMenuBlockID != nil {
+                Color.clear
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
+                    .onTapGesture { closeScheduleCardMenu() }
+                    .zIndex(99)
+            }
+
+            if let menuBlockID = activeScheduleMenuBlockID,
+               let shotID = project.scheduleBlock(with: menuBlockID)?.shotID,
+               let shot = project.shot(with: shotID) {
+                globalScheduleCardMenu(for: shot, blockID: menuBlockID)
+                    .offset(x: activeScheduleMenuPosition.x + 6, y: activeScheduleMenuPosition.y + 6)
+                    .zIndex(100)
+            }
+        }
+        .coordinateSpace(name: "scheduleContextLayer")
+        .onPreferenceChange(ScheduleBlockFramePreferenceKey.self) { frames in
+            scheduleBlockFrames = frames
         }
     }
 
@@ -563,36 +704,74 @@ struct WorkspaceView: View {
     }
 
     private func setupCard(for project: ProjectDocument) -> some View {
-        let startSeconds = project.scheduleSettings.shootStartMinutes * 60
-        let endSeconds = startSeconds + project.scheduleSettings.setupDurationSeconds
+        HStack(spacing: 12) {
+            Text("TAG 1")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(LakaiTheme.ink)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(LakaiTheme.accentStrong)
+                .clipShape(Capsule())
 
-        return HStack(alignment: .top, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Start")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(LakaiTheme.ink)
-                Text(LakaiFormatters.timeString(from: startSeconds))
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(LakaiTheme.ink)
+            compactDateButton(
+                title: "Drehtag",
+                value: LakaiFormatters.shootDate.string(from: project.scheduleSettings.shootDate),
+                isPresented: $isSetupDatePickerPresented
+            ) {
+                DatePicker(
+                    "Drehtag",
+                    selection: Binding(
+                        get: { project.scheduleSettings.shootDate },
+                        set: {
+                            appState.updateShootDate($0)
+                            isSetupDatePickerPresented = false
+                        }
+                    ),
+                    displayedComponents: .date
+                )
+                .datePickerStyle(.graphical)
+                .labelsHidden()
+                .padding(10)
+                .frame(width: 280)
             }
-            .frame(width: 84, alignment: .topLeading)
-            .padding(8)
-            .background(LakaiTheme.accentSoft)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(LakaiTheme.panelBorder, lineWidth: 1))
 
-            HStack(spacing: 12) {
-                Text("Setup")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(LakaiTheme.ink)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(LakaiTheme.accentSoft)
-                    .clipShape(Capsule())
+            compactDateButton(
+                title: "Drehstart",
+                value: LakaiFormatters.timeString(from: project.scheduleSettings.shootStartMinutes * 60),
+                isPresented: $isSetupTimePickerPresented
+            ) {
+                DatePicker(
+                    "Drehstart",
+                    selection: Binding(
+                        get: { date(fromMinutes: project.scheduleSettings.shootStartMinutes, on: project.scheduleSettings.shootDate) },
+                        set: {
+                            appState.updateShootStart($0)
+                            isSetupTimePickerPresented = false
+                        }
+                    ),
+                    displayedComponents: .hourAndMinute
+                )
+                .labelsHidden()
+                .padding(10)
+                .frame(width: 160)
+            }
 
-                TextField("Bezeichnung", text: Binding(
-                    get: { appState.activeProject?.scheduleSettings.setupTitle ?? "Setup" },
-                    set: { appState.updateSetupTitle($0) }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Setup Dauer")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(LakaiTheme.mutedInk)
+
+                TextField("0:15", text: Binding(
+                    get: {
+                        if setupDurationDraft.isEmpty {
+                            return LakaiFormatters.durationString(from: project.scheduleSettings.setupDurationSeconds)
+                        }
+                        return setupDurationDraft
+                    },
+                    set: { value in
+                        setupDurationDraft = value
+                        appState.updateSetupDuration(value)
+                    }
                 ))
                 .textFieldStyle(.plain)
                 .padding(.horizontal, 8)
@@ -600,51 +779,23 @@ struct WorkspaceView: View {
                 .background(LakaiTheme.accentSoft)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .foregroundStyle(LakaiTheme.ink)
-                .font(.system(size: 13, weight: .medium))
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Dauer")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(LakaiTheme.ink)
-
-                    TextField("0:15", text: Binding(
-                        get: {
-                            if setupDurationDraft.isEmpty {
-                                return LakaiFormatters.durationString(from: project.scheduleSettings.setupDurationSeconds)
-                            }
-                            return setupDurationDraft
-                        },
-                        set: { value in
-                            setupDurationDraft = value
-                            appState.updateSetupDuration(value)
-                        }
-                    ))
-                    .textFieldStyle(.plain)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
-                    .background(LakaiTheme.accentSoft)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .foregroundStyle(LakaiTheme.ink)
-                    .font(.system(size: 12, weight: .medium))
-                    .frame(width: 96)
-                }
-
-                Spacer(minLength: 0)
-
-                Text("Ende: \(LakaiFormatters.timeString(from: endSeconds))")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(LakaiTheme.ink)
+                .font(.system(size: 12, weight: .medium))
+                .frame(width: 80)
             }
-            .padding(12)
-            .background(LakaiTheme.panel.opacity(0.96))
-            .clipShape(RoundedRectangle(cornerRadius: 18))
-            .overlay(RoundedRectangle(cornerRadius: 18).stroke(LakaiTheme.panelBorder, lineWidth: 1))
+
+            Spacer(minLength: 0)
         }
+        .padding(12)
+        .background(LakaiTheme.panel.opacity(0.96))
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(LakaiTheme.panelBorder, lineWidth: 1))
     }
 
-    private func scheduleShotCard(for block: ScheduleBlock, shot: Shot, entry: CalculatedScheduleEntry, isLastBlock: Bool) -> some View {
+    private func scheduleShotCard(for block: ScheduleBlock, shot: Shot, entry: CalculatedScheduleEntry, isLastBlock: Bool, isFirstShot: Bool = false) -> some View {
         HStack(alignment: .top, spacing: 10) {
-            if !shot.isOptional {
+            if shot.isOptional {
+                Color.clear.frame(width: 84)
+            } else {
                 scheduleTimeRail(for: entry)
             }
 
@@ -686,13 +837,15 @@ struct WorkspaceView: View {
                     }
 
                     HStack(alignment: .bottom, spacing: 10) {
-                        labeledField(title: "Setup", text: Binding(
-                            get: { scheduleSetupDrafts[shot.id, default: LakaiFormatters.durationString(from: shot.setupSeconds)] },
-                            set: { value in
-                                scheduleSetupDrafts[shot.id] = value
-                                appState.updateShotSetup(shot.id, text: value)
-                            }
-                        ), width: 78)
+                        if !isFirstShot {
+                            labeledField(title: "Setup", text: Binding(
+                                get: { scheduleSetupDrafts[shot.id, default: LakaiFormatters.durationString(from: shot.setupSeconds)] },
+                                set: { value in
+                                    scheduleSetupDrafts[shot.id] = value
+                                    appState.updateShotSetup(shot.id, text: value)
+                                }
+                            ), width: 78)
+                        }
 
                         labeledField(title: "Dauer", text: Binding(
                             get: { scheduleDurationDrafts[shot.id, default: LakaiFormatters.durationString(from: shot.durationSeconds)] },
@@ -733,6 +886,11 @@ struct WorkspaceView: View {
         .opacity(shot.isOptional ? 0.3 : 1.0)
         .scaleEffect(draggedScheduleBlockID == entry.id ? 1.01 : 1)
         .overlay(reorderCardOverlay(isDragged: draggedScheduleBlockID == entry.id))
+        .overlay {
+            RightClickCaptureView { point in
+                openScheduleCardMenu(blockID: block.id, localPoint: point)
+            }
+        }
         .zIndex(draggedScheduleBlockID == entry.id ? 2 : 0)
         .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.88), value: draggedScheduleBlockID)
         .onDrag {
@@ -757,19 +915,21 @@ struct WorkspaceView: View {
 
     private func scheduleTimeRail(for entry: CalculatedScheduleEntry) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Setup")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(LakaiTheme.mutedInk)
-                Text(entry.setupStart.map(LakaiFormatters.timeString(from:)) ?? "-")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(LakaiTheme.ink)
+            if let setupStart = entry.setupStart {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Setup")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(LakaiTheme.mutedInk)
+                    Text(LakaiFormatters.timeString(from: setupStart))
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(LakaiTheme.ink)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(8)
+                .background(LakaiTheme.accentSoft)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(LakaiTheme.panelBorder, lineWidth: 1))
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(8)
-            .background(LakaiTheme.accentSoft)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(LakaiTheme.panelBorder, lineWidth: 1))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Dreh")
@@ -891,6 +1051,145 @@ struct WorkspaceView: View {
         .background(LakaiTheme.accentSoft)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(LakaiTheme.panelBorder, lineWidth: 1))
+    }
+
+    private func dayHeaderCard(for block: ScheduleBlock, dayNumber: Int) -> some View {
+        let isDatePickerOpen = Binding<Bool>(
+            get: { dayHeaderDatePickerID == block.id },
+            set: { dayHeaderDatePickerID = $0 ? block.id : nil }
+        )
+        let blockDate = block.date ?? Date()
+
+        return HStack(spacing: 12) {
+            Text("TAG \(dayNumber)")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(LakaiTheme.ink)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(LakaiTheme.accentStrong)
+                .clipShape(Capsule())
+
+            compactDateButton(
+                title: "Datum",
+                value: LakaiFormatters.shootDate.string(from: blockDate),
+                isPresented: isDatePickerOpen
+            ) {
+                DatePicker(
+                    "Datum",
+                    selection: Binding(
+                        get: { blockDate },
+                        set: { newDate in
+                            appState.updateDayHeaderDate(newDate, forBlockID: block.id)
+                            dayHeaderDatePickerID = nil
+                        }
+                    ),
+                    displayedComponents: .date
+                )
+                .datePickerStyle(.graphical)
+                .labelsHidden()
+                .padding(10)
+                .frame(width: 280)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Drehstart")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(LakaiTheme.mutedInk)
+
+                TextField("8:00", text: Binding(
+                    get: { dayHeaderStartTimeDrafts[block.id, default: LakaiFormatters.timeString(from: block.dayStartMinutes * 60)] },
+                    set: { value in
+                        dayHeaderStartTimeDrafts[block.id] = value
+                        appState.updateDayHeaderStartMinutes(text: value, forBlockID: block.id)
+                    }
+                ))
+                .textFieldStyle(.plain)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(LakaiTheme.accentSoft)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .foregroundStyle(LakaiTheme.ink)
+                .font(.system(size: 12, weight: .medium))
+                .frame(width: 80)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Setup Dauer")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(LakaiTheme.mutedInk)
+
+                TextField("0:15", text: Binding(
+                    get: { dayHeaderSetupDurationDrafts[block.id, default: LakaiFormatters.durationString(from: block.daySetupDurationSeconds)] },
+                    set: { value in
+                        dayHeaderSetupDurationDrafts[block.id] = value
+                        appState.updateDayHeaderSetupDuration(value, forBlockID: block.id)
+                    }
+                ))
+                .textFieldStyle(.plain)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(LakaiTheme.accentSoft)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .foregroundStyle(LakaiTheme.ink)
+                .font(.system(size: 12, weight: .medium))
+                .frame(width: 80)
+            }
+
+            Toggle("B-Unit", isOn: Binding(
+                get: { block.isBUnit },
+                set: { appState.updateDayHeaderBUnit($0, forBlockID: block.id) }
+            ))
+            .toggleStyle(.checkbox)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(LakaiTheme.ink)
+
+            Spacer(minLength: 0)
+
+            Button {
+                appState.deleteScheduleBlock(block.id)
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 11, weight: .bold))
+                    .frame(width: 26, height: 26)
+            }
+            .buttonStyle(.plain)
+            .background(LakaiTheme.accentSoft)
+            .clipShape(Circle())
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(
+            ZStack(alignment: .leading) {
+                LakaiTheme.panel.opacity(0.96)
+                Rectangle()
+                    .fill(LakaiTheme.accentStrong)
+                    .frame(width: 4)
+            }
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(LakaiTheme.accentStrong.opacity(0.6), lineWidth: 1.5))
+        .scaleEffect(draggedScheduleBlockID == block.id ? 1.01 : 1)
+        .overlay(reorderCardOverlay(isDragged: draggedScheduleBlockID == block.id))
+        .zIndex(draggedScheduleBlockID == block.id ? 2 : 0)
+        .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.88), value: draggedScheduleBlockID)
+        .onDrag {
+            draggedScheduleBlockID = block.id
+            return NSItemProvider(object: block.id.uuidString as NSString)
+        } preview: {
+            dragPreviewPlaceholder
+        }
+        .onDrop(
+            of: [UTType.text],
+            delegate: ReorderDropDelegate(
+                itemID: block.id,
+                orderedIDsProvider: { appState.activeProject?.orderedScheduleBlocks.map(\.id) ?? [] },
+                draggedID: $draggedScheduleBlockID,
+                insertAfterTarget: true,
+                onMove: { from, to in
+                    appState.moveItemLive(in: .schedule, from: from, to: to)
+                }
+            )
+        )
     }
 
     private func scheduleImageView(for shot: Shot) -> some View {
@@ -1044,6 +1343,8 @@ struct WorkspaceView: View {
         scheduleSetupDrafts = Dictionary(uniqueKeysWithValues: project.shots.map { ($0.id, LakaiFormatters.durationString(from: $0.setupSeconds)) })
         scheduleDurationDrafts = Dictionary(uniqueKeysWithValues: project.shots.map { ($0.id, LakaiFormatters.durationString(from: $0.durationSeconds)) })
         pauseDurationDrafts = Dictionary(uniqueKeysWithValues: project.orderedScheduleBlocks.filter { $0.kind == .pause }.map { ($0.id, LakaiFormatters.durationString(from: $0.durationSeconds)) })
+        dayHeaderStartTimeDrafts = Dictionary(uniqueKeysWithValues: project.orderedScheduleBlocks.filter { $0.kind == .dayHeader }.map { ($0.id, LakaiFormatters.timeString(from: $0.dayStartMinutes * 60)) })
+        dayHeaderSetupDurationDrafts = Dictionary(uniqueKeysWithValues: project.orderedScheduleBlocks.filter { $0.kind == .dayHeader }.map { ($0.id, LakaiFormatters.durationString(from: $0.daySetupDurationSeconds)) })
         setupDurationDraft = LakaiFormatters.durationString(from: project.scheduleSettings.setupDurationSeconds)
     }
 

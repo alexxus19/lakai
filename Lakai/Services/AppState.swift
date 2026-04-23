@@ -97,6 +97,12 @@ final class AppState: ObservableObject {
         }
     }
 
+    func addDayBlock() {
+        mutateProject(animated: true) { project in
+            project.addDayBlock()
+        }
+    }
+
     func deleteShot(_ id: UUID) {
         mutateProject(animated: true) { project in
             project.deleteShot(id: id)
@@ -319,6 +325,39 @@ final class AppState: ObservableObject {
 
         mutateProject { project in
             project.scheduleSettings.setupDurationSeconds = seconds
+        }
+    }
+
+    func updateDayHeaderDate(_ date: Date, forBlockID id: UUID) {
+        mutateProject { project in
+            let existingDates = [project.scheduleSettings.shootDate] +
+                project.scheduleBlocks.filter { $0.kind == .dayHeader && $0.id != id }.compactMap { $0.date }
+            let shouldBUnit = existingDates.contains { Calendar.current.isDate($0, inSameDayAs: date) }
+            project.updateScheduleBlock(id: id) { block in
+                block.date = date
+                block.isBUnit = shouldBUnit
+            }
+        }
+    }
+
+    func updateDayHeaderStartMinutes(text: String, forBlockID id: UUID) {
+        guard let seconds = LakaiFormatters.parseDuration(text) else { return }
+        let minutes = seconds / 60
+        mutateProject { project in
+            project.updateScheduleBlock(id: id) { $0.dayStartMinutes = minutes }
+        }
+    }
+
+    func updateDayHeaderBUnit(_ isBUnit: Bool, forBlockID id: UUID) {
+        mutateProject { project in
+            project.updateScheduleBlock(id: id) { $0.isBUnit = isBUnit }
+        }
+    }
+
+    func updateDayHeaderSetupDuration(_ text: String, forBlockID id: UUID) {
+        guard let seconds = LakaiFormatters.parseDuration(text) else { return }
+        mutateProject { project in
+            project.updateScheduleBlock(id: id) { $0.daySetupDurationSeconds = seconds }
         }
     }
 

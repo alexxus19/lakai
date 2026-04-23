@@ -129,6 +129,7 @@ enum LogoKind {
 enum ScheduleBlockKind: String, Codable, Hashable {
     case shot
     case pause
+    case dayHeader
 }
 
 struct ProjectSummary: Identifiable, Hashable {
@@ -181,6 +182,11 @@ struct ScheduleBlock: Identifiable, Codable, Hashable {
     var durationSeconds: Int = 15 * 60
     var scheduleNotes: String = ""
     var backgroundColor: String? = nil
+    // Day header fields — only used when kind == .dayHeader
+    var date: Date? = nil
+    var dayStartMinutes: Int = 8 * 60
+    var daySetupDurationSeconds: Int = 15 * 60
+    var isBUnit: Bool = false
 }
 
 struct ProjectDocument: Identifiable, Codable {
@@ -206,7 +212,7 @@ struct ProjectDocument: Identifiable, Codable {
         let validIDs = Set(shots.map(\.id))
         return scheduleBlocks.filter { block in
             switch block.kind {
-            case .pause:
+            case .pause, .dayHeader:
                 return true
             case .shot:
                 guard let shotID = block.shotID else {
@@ -314,6 +320,31 @@ struct ProjectDocument: Identifiable, Codable {
         )
     }
 
+    mutating func addDayBlock() {
+        // Default to one day after the shoot date (or one day after the last existing day header)
+        let existingDayDates: [Date] = scheduleBlocks
+            .filter { $0.kind == .dayHeader }
+            .compactMap { $0.date }
+        let allDates = [scheduleSettings.shootDate] + existingDayDates
+        let latestDate = allDates.max() ?? scheduleSettings.shootDate
+        let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: latestDate) ?? latestDate
+
+        // Auto-detect B-Unit: same calendar day as any existing shoot day
+        let isBUnit = allDates.contains { Calendar.current.isDate($0, inSameDayAs: nextDay) }
+
+        scheduleBlocks.append(ScheduleBlock(
+            kind: .dayHeader,
+            shotID: nil,
+            title: "",
+            durationSeconds: 0,
+            scheduleNotes: "",
+            backgroundColor: nil,
+            date: nextDay,
+            dayStartMinutes: 8 * 60,
+            isBUnit: isBUnit
+        ))
+    }
+
     mutating func updateShot(id: UUID, _ mutate: (inout Shot) -> Void) {
         guard let index = shots.firstIndex(where: { $0.id == id }) else {
             return
@@ -329,7 +360,7 @@ struct ProjectDocument: Identifiable, Codable {
     }
 
     mutating func deleteScheduleBlock(id: UUID) {
-        scheduleBlocks.removeAll { $0.id == id && $0.kind == .pause }
+        scheduleBlocks.removeAll { $0.id == id && ($0.kind == .pause || $0.kind == .dayHeader) }
     }
 
     mutating func updateScheduleBlock(id: UUID, _ mutate: (inout ScheduleBlock) -> Void) {

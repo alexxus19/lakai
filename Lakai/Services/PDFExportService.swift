@@ -50,7 +50,26 @@ struct PDFExportService {
         ]
 
         rows.append(contentsOf: computation.entries.map { entry in
-            let isPause = entry.block.kind == .pause
+            let kind = entry.block.kind
+            if kind == .dayHeader {
+                return ScheduleTableRow(
+                    rowKind: .dayHeader,
+                    shotLabel: "",
+                    size: "",
+                    setupStart: "",
+                    shootStart: "",
+                    shootEnd: "",
+                    description: "",
+                    shotNotes: "",
+                    scheduleNotes: "",
+                    imageFileName: nil,
+                    backgroundColor: nil,
+                    dayDate: entry.block.date,
+                    dayStartMinutes: entry.block.dayStartMinutes,
+                    isBUnit: entry.block.isBUnit
+                )
+            }
+            let isPause = kind == .pause
             return ScheduleTableRow(
                 rowKind: isPause ? .pause : .shot,
                 shotLabel: isPause ? "Pause" : (entry.shotNumber.map(String.init) ?? ""),
@@ -157,6 +176,9 @@ struct PDFExportService {
 
         var pageNumber = 0
         var currentY: CGFloat = 0
+        var currentDayDate: Date? = nil
+        var currentDayStartMinutes: Int = project.scheduleSettings.shootStartMinutes
+        var currentDayIsBUnit: Bool = false
 
         func beginNewPage() {
             if pageNumber > 0 {
@@ -172,6 +194,9 @@ struct PDFExportService {
                 project: project,
                 metrics: metrics,
                 startY: currentY,
+                currentDayDate: currentDayDate,
+                currentDayStartMinutes: currentDayStartMinutes,
+                isBUnit: currentDayIsBUnit,
                 activeProjectURL: activeProjectURL,
                 persistence: persistence
             )
@@ -181,6 +206,15 @@ struct PDFExportService {
         beginNewPage()
 
         for row in rows {
+            // Day header rows force a new page rather than render as a table row
+            if row.rowKind == .dayHeader {
+                currentDayDate = row.dayDate
+                currentDayStartMinutes = row.dayStartMinutes
+                currentDayIsBUnit = row.isBUnit
+                beginNewPage()
+                continue
+            }
+
             let rowHeight = scheduleRowHeight(row: row, columns: columns, metrics: metrics)
             if currentY - rowHeight < metrics.marginBottom {
                 beginNewPage()
@@ -220,6 +254,9 @@ struct PDFExportService {
         project: ProjectDocument,
         metrics: PDFPageMetrics,
         startY: CGFloat,
+        currentDayDate: Date?,
+        currentDayStartMinutes: Int,
+        isBUnit: Bool,
         activeProjectURL: URL?,
         persistence: ProjectPersistenceService
     ) -> CGFloat {
@@ -233,6 +270,10 @@ struct PDFExportService {
             persistence: persistence
         )
 
+        let displayDate = currentDayDate ?? project.scheduleSettings.shootDate
+        let displayStartMinutes = currentDayDate != nil ? currentDayStartMinutes : project.scheduleSettings.shootStartMinutes
+        let bUnitSuffix = isBUnit ? " (B-Unit)" : ""
+
         let textWidth = max(metrics.tableWidth - logoReserveWidth - 8, 260)
         let titleRect = CGRect(x: metrics.marginLeft, y: y - 26, width: textWidth, height: 26)
         drawWrappedText("\(project.title) - Drehplan", in: titleRect, context: context, font: metrics.headerFont, alignment: .left)
@@ -240,7 +281,7 @@ struct PDFExportService {
 
         let infoLines = [
             "Version v\(project.scheduleVersion) | Export: \(LakaiFormatters.exportDate.string(from: Date()))",
-            "Drehtag: \(LakaiFormatters.shootDate.string(from: project.scheduleSettings.shootDate)) | Start: \(LakaiFormatters.timeString(from: project.scheduleSettings.shootStartMinutes * 60))",
+            "Drehtag: \(LakaiFormatters.shootDate.string(from: displayDate))\(bUnitSuffix) | Start: \(LakaiFormatters.timeString(from: displayStartMinutes * 60))",
             "Regie: \(project.crewInfo.director) | 1st AD: \(project.crewInfo.firstAD) | Producer: \(project.crewInfo.producer)",
             "DoP: \(project.crewInfo.dop) | Kunde: \(project.crewInfo.client)"
         ]
@@ -375,7 +416,7 @@ struct PDFExportService {
             switch row.rowKind {
             case .pause:
                 fillColor = NSColor(white: 0.94, alpha: 1)
-            case .setup, .shot:
+            case .setup, .shot, .dayHeader:
                 fillColor = .white
             }
         }
@@ -694,10 +735,32 @@ private struct ScheduleTableRow {
     let scheduleNotes: String
     let imageFileName: String?
     let backgroundColor: String?
+    // Day header metadata (only used when rowKind == .dayHeader)
+    let dayDate: Date?
+    let dayStartMinutes: Int
+    let isBUnit: Bool
+
+    init(rowKind: ScheduleTableRowKind, shotLabel: String, size: String, setupStart: String, shootStart: String, shootEnd: String, description: String, shotNotes: String, scheduleNotes: String, imageFileName: String?, backgroundColor: String?, dayDate: Date? = nil, dayStartMinutes: Int = 0, isBUnit: Bool = false) {
+        self.rowKind = rowKind
+        self.shotLabel = shotLabel
+        self.size = size
+        self.setupStart = setupStart
+        self.shootStart = shootStart
+        self.shootEnd = shootEnd
+        self.description = description
+        self.shotNotes = shotNotes
+        self.scheduleNotes = scheduleNotes
+        self.imageFileName = imageFileName
+        self.backgroundColor = backgroundColor
+        self.dayDate = dayDate
+        self.dayStartMinutes = dayStartMinutes
+        self.isBUnit = isBUnit
+    }
 }
 
 private enum ScheduleTableRowKind {
     case setup
     case shot
     case pause
+    case dayHeader
 }

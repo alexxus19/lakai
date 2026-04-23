@@ -127,7 +127,11 @@ struct ProjectPersistenceService {
                     title: blockElement.childText(for: "title") ?? "Pause",
                     durationSeconds: Int(blockElement.childText(for: "durationSeconds") ?? "900") ?? 900,
                     scheduleNotes: blockElement.childText(for: "scheduleNotes") ?? "",
-                    backgroundColor: blockElement.childText(for: "backgroundColor")
+                    backgroundColor: blockElement.childText(for: "backgroundColor"),
+                    date: Self.isoDate(blockElement.childText(for: "dayDate")),
+                    dayStartMinutes: Int(blockElement.childText(for: "dayStartMinutes") ?? "480") ?? 480,
+                    daySetupDurationSeconds: Int(blockElement.childText(for: "daySetupDurationSeconds") ?? "900") ?? 900,
+                    isBUnit: blockElement.childText(for: "isBUnit") == "true"
                 )
             }
         } else {
@@ -227,6 +231,14 @@ struct ProjectPersistenceService {
             blockElement.addChild(XMLElement(name: "durationSeconds", stringValue: String(block.durationSeconds)))
             blockElement.addChild(XMLElement(name: "scheduleNotes", stringValue: block.scheduleNotes))
             blockElement.addChild(XMLElement(name: "backgroundColor", stringValue: block.backgroundColor))
+            if block.kind == .dayHeader {
+                if let date = block.date {
+                    blockElement.addChild(XMLElement(name: "dayDate", stringValue: Self.isoFormatter.string(from: date)))
+                }
+                blockElement.addChild(XMLElement(name: "dayStartMinutes", stringValue: String(block.dayStartMinutes)))
+                blockElement.addChild(XMLElement(name: "daySetupDurationSeconds", stringValue: String(block.daySetupDurationSeconds)))
+                blockElement.addChild(XMLElement(name: "isBUnit", stringValue: block.isBUnit ? "true" : "false"))
+            }
             scheduleBlocks.addChild(blockElement)
         }
         root.addChild(scheduleBlocks)
