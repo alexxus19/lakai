@@ -43,6 +43,11 @@ Lakai is a native macOS directing tool for creating, organizing, versioning, and
 - Drag cancellation or dropping outside valid targets must always clear drag visual state.
 - Reorder interaction must be optimized for responsiveness; persistence is committed once at drag end, not on every hover move.
 
+### Build & Deployment (Non-Negotiable)
+
+- After each completed implementation pass, a compiled test build of the app must be produced inside the repository directory so it can be opened directly for manual testing.
+- The build output must be placed in `/Build/Lakai.app` so users can test the latest changes without rebuilding via Xcode.
+
 ## Functional Requirements
 
 ### Overview
@@ -66,7 +71,7 @@ Lakai is a native macOS directing tool for creating, organizing, versioning, and
   - Optional background color (6 pastel options)
   - Optional flag that affects visibility and timing
 - A permanent 16:9 storyboard image slot on the right side of the card, with hover actions for replacing or removing the image.
-- Right-click context menu on shots provides: toggle optional status, color picker, and duplicate function.
+- Right-click context menu on shots provides: toggle optional status, color picker, duplicate function, and delete action.
 - Optional shots display at 30% opacity for visual distinction.
 - Storyboard PDF export uses the current project state with shot background colors applied to table rows.
 - All shot properties (background color, optional status) are XML-persisted.
@@ -258,6 +263,34 @@ Lakai is a native macOS directing tool for creating, organizing, versioning, and
 - Shot duplication preserves all properties and automatically creates corresponding schedule block
 - Pause blocks also support background coloring via context menu (when implemented)
 - All new properties (isOptional, backgroundColor) are XML-persisted and survive project open/close cycles
+
+### macOS Context Menu Compatibility Fix
+- Shot card right-click menus now use a native macOS-compatible context menu structure built only from supported menu items and submenus
+- The previous custom layout-based menu content prevented the context menu from appearing on secondary click in SwiftUI on macOS
+
+### Shot Card Layout Compaction Pass
+- Shot number and shot size selector now live in a dedicated left-side metadata column, with the shot number above the size control
+- Delete was removed from the inline card chrome and is now available only from the shot card context menu
+- Shot description and notes fields were tightened vertically so the overall card can render more compactly
+
+### Shot Card UI Refinements (Current Pass)
+- Shot number display size increased 20% with bold weight for better visual prominence
+- Size selector menu now displays the currently selected size in the label (not just "Groesse")
+- Size selector duplicate arrow removed; menu shows only single native dropdown indicator
+- Color menu options now display human-readable color names (Mint, Peach, Sky, Rose, Cream, Lavender) with inline color preview circles
+- Context menu delete action available on all non-editable card surfaces for reliable rightclick activation
+
+### Script Editor Readability Update
+- In `Skript` mode, the editor text and insertion cursor are now forced to white for clear contrast on dark backgrounds
+
+### Readability Hardening on Dark UI
+- Script syntax styling now keeps base shot lines in white and keyword highlights in softened white so formatted script text no longer falls back to dark system label colors
+- Shot size selector value text is now explicitly white for stable contrast on dark card controls
+- Shot color context-menu labels now force primary menu text color while keeping colored dot previews, so both name and swatch remain visible
+
+### Selector & Menu Reliability Pass
+- Shot size selection in cards now uses a custom app-styled popover list, ensuring the selected size label remains visible in white on dark controls
+- Color submenu entries now use native label rows with a tinted circle symbol and explicit color names for stable visibility in the macOS context menu
 
 ## Acceptance Baseline
 

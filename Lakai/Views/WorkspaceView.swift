@@ -268,8 +268,14 @@ struct WorkspaceView: View {
                                     get: { appState.activeProject?.shot(with: shot.id)?.notes ?? "" },
                                     set: { appState.updateShotNotes(shot.id, text: $0) }
                                 ),
-                                setupBinding: .constant(""),
-                                durationBinding: .constant("")
+                                    setupBinding: Binding(
+                                        get: { "" },
+                                        set: { _ in }
+                                    ),
+                                    durationBinding: Binding(
+                                        get: { "" },
+                                        set: { _ in }
+                                    )
                             )
                             .opacity(shot.isOptional ? 0.3 : 1.0)
                             .scaleEffect(draggedShotID == shot.id ? 1.01 : 1)

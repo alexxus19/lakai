@@ -26,8 +26,8 @@ struct ScriptTextEditor: NSViewRepresentable {
         textView.textContainer?.widthTracksTextView = true
         textView.isVerticallyResizable = true
         textView.isHorizontallyResizable = false
-        textView.textColor = .labelColor
-        textView.insertionPointColor = .labelColor
+        textView.textColor = .white
+        textView.insertionPointColor = .white
         textView.autoresizingMask = [.width]
         textView.delegate = context.coordinator
         textView.textStorage?.setAttributedString(scriptSync.attributedScript(text))

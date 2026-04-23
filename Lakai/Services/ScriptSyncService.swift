@@ -217,21 +217,21 @@ struct ScriptSyncService {
     private var baseAttributes: [NSAttributedString.Key: Any] {
         [
             .font: NSFont.monospacedSystemFont(ofSize: 13, weight: .regular),
-            .foregroundColor: NSColor.labelColor
+            .foregroundColor: NSColor.white
         ]
     }
 
     private var shotLineAttributes: [NSAttributedString.Key: Any] {
         [
             .font: NSFont.monospacedSystemFont(ofSize: 13, weight: .regular),
-            .foregroundColor: NSColor.labelColor
+            .foregroundColor: NSColor.white
         ]
     }
 
     private var keywordAttributes: [NSAttributedString.Key: Any] {
         [
             .font: NSFontManager.shared.convert(NSFont.monospacedSystemFont(ofSize: 13, weight: .regular), toHaveTrait: .italicFontMask),
-            .foregroundColor: NSColor.secondaryLabelColor
+            .foregroundColor: NSColor.white.withAlphaComponent(0.72)
         ]
     }
 }

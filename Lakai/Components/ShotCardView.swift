@@ -86,53 +86,24 @@ struct ShotCardView: View {
     let durationBinding: Binding<String>
 
     @State private var isHoveringImage = false
-    @State private var isShowingColorPicker = false
+    @State private var isSizePickerPresented = false
 
     var body: some View {
-        HStack(alignment: .center, spacing: 14) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .center) {
-                    Text("#\(shotNumber)")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(LakaiTheme.ink)
-
-                    Menu {
-                        ForEach(ShotSize.allCases) { size in
-                            Button(size.title) {
-                                sizeBinding.wrappedValue = size
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Text(sizeBinding.wrappedValue.title)
-                                .lineLimit(1)
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 9, weight: .bold))
-                        }
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(LakaiTheme.ink)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(LakaiTheme.accentSoft)
-                        .clipShape(Capsule())
-                    }
-                    .menuStyle(.borderlessButton)
-                    .buttonStyle(.plain)
-                    .tint(LakaiTheme.ink)
-
-                    Spacer()
-
-                    if mode == .shotlist {
-                        iconButton("trash") { onDelete() }
-                    }
+        HStack(alignment: .top, spacing: 12) {
+            metadataColumn
+                .frame(width: 88, alignment: .leading)
+                .contentShape(Rectangle())
+                .contextMenu {
+                    contextMenuContent
                 }
 
+            VStack(alignment: .leading, spacing: 7) {
                 TextEditor(text: descriptionBinding)
                     .font(.system(size: 12, weight: .regular))
                     .foregroundStyle(LakaiTheme.ink)
                     .scrollContentBackground(.hidden)
-                    .padding(7)
-                    .frame(minHeight: 62, maxHeight: 74)
+                    .padding(6)
+                    .frame(minHeight: 52, maxHeight: 64)
                     .background(LakaiTheme.accentSoft)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .overlay(RoundedRectangle(cornerRadius: 12).stroke(LakaiTheme.panelBorder, lineWidth: 1))
@@ -140,7 +111,7 @@ struct ShotCardView: View {
                 TextField("Anmerkungen / Kameramoves", text: notesBinding)
                     .textFieldStyle(.plain)
                     .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
+                    .padding(.vertical, 5)
                     .background(LakaiTheme.accentSoft)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                     .foregroundStyle(LakaiTheme.ink)
@@ -158,14 +129,92 @@ struct ShotCardView: View {
 
             imagePanel
         }
-        .padding(14)
+        .padding(12)
         .background(cardBackgroundColor)
         .clipShape(RoundedRectangle(cornerRadius: 18))
         .overlay(RoundedRectangle(cornerRadius: 18).stroke(LakaiTheme.panelBorder, lineWidth: 1))
-        .shadow(color: Color.black.opacity(0.035), radius: 12, x: 0, y: 6)
+        .contentShape(RoundedRectangle(cornerRadius: 18))
         .contextMenu {
             contextMenuContent
         }
+        .shadow(color: Color.black.opacity(0.035), radius: 12, x: 0, y: 6)
+    }
+
+    private var metadataColumn: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("#\(shotNumber)")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(LakaiTheme.ink)
+                .lineLimit(1)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Groesse")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(LakaiTheme.mutedInk)
+                    .textCase(.uppercase)
+
+                Button {
+                    isSizePickerPresented.toggle()
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(sizeBinding.wrappedValue.title)
+                            .lineLimit(1)
+                            .multilineTextAlignment(.leading)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Color.white)
+
+                        Spacer(minLength: 0)
+
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(Color.white.opacity(0.9))
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(LakaiTheme.accentSoft)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .contentShape(RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $isSizePickerPresented, arrowEdge: .bottom) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(ShotSize.allCases) { size in
+                            Button {
+                                sizeBinding.wrappedValue = size
+                                isSizePickerPresented = false
+                            } label: {
+                                HStack {
+                                    Text(size.title)
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(Color.white)
+
+                                    Spacer(minLength: 0)
+
+                                    if sizeBinding.wrappedValue == size {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundStyle(Color.white)
+                                    }
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 7)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(LakaiTheme.panel.opacity(0.96))
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(8)
+                    .frame(width: 190)
+                    .background(LakaiTheme.canvas)
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var cardBackgroundColor: Color {
@@ -178,34 +227,29 @@ struct ShotCardView: View {
     }
 
     private var contextMenuContent: some View {
-        VStack {
+        Group {
             Button(action: onToggleOptional) {
-                Label(shot.isOptional ? "Aktivieren" : "Optional", systemImage: shot.isOptional ? "checkmark.circle.fill" : "circle")
+                Label(shot.isOptional ? "Als normal markieren" : "Als optional markieren", systemImage: shot.isOptional ? "checkmark.circle.fill" : "circle")
             }
 
-            Divider()
-
             Menu {
-                HStack(spacing: 12) {
-                    Spacer()
-                    ForEach(LakaiTheme.shotColors, id: \.hex) { item in
-                        Button(action: { onSetBackgroundColor(item.hex) }) {
-                            Circle()
-                                .fill(item.color)
-                                .frame(width: 26, height: 26)
-                                .overlay(Circle().stroke(shot.backgroundColor == item.hex ? LakaiTheme.ink : Color.clear, lineWidth: 2))
-                        }
+                ForEach(LakaiTheme.shotColors, id: \.hex) { item in
+                    Button {
+                        onSetBackgroundColor(item.hex)
+                    } label: {
+                        Label(colorName(for: item.hex), systemImage: "circle.fill")
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(item.color, Color.primary)
                     }
-                    Button(action: { onSetBackgroundColor(nil) }) {
-                        Image(systemName: "xmark")
-                            .foregroundStyle(LakaiTheme.mutedInk)
-                            .frame(width: 26, height: 26)
-                            .background(LakaiTheme.accentSoft)
-                            .clipShape(Circle())
-                    }
-                    Spacer()
                 }
-                .padding(12)
+
+                Divider()
+
+                Button {
+                    onSetBackgroundColor(nil)
+                } label: {
+                    Label("Farbe entfernen", systemImage: "xmark.circle")
+                }
             } label: {
                 Label("Farbe", systemImage: "paintpalette")
             }
@@ -215,6 +259,27 @@ struct ShotCardView: View {
             Button(action: onDuplicate) {
                 Label("Duplizieren", systemImage: "square.on.square")
             }
+
+            if mode == .shotlist {
+                Divider()
+
+                Button(role: .destructive, action: onDelete) {
+                    Label("Shot loeschen", systemImage: "trash")
+                }
+            }
+        }
+    }
+
+    private func colorName(for hex: String) -> String {
+        let normalizedHex = hex.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "#", with: "").uppercased()
+        switch normalizedHex {
+        case "BFE8D2": return "Mint"
+        case "F6D3C6": return "Peach"
+        case "C7DEF4": return "Sky"
+        case "F2C8D8": return "Rose"
+        case "F7ECC6": return "Cream"
+        case "DDD3F8": return "Lavender"
+        default: return "Farbe"
         }
     }
 
@@ -279,6 +344,9 @@ struct ShotCardView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(LakaiTheme.panelBorder, lineWidth: 1))
         .contentShape(RoundedRectangle(cornerRadius: 16))
+        .contextMenu {
+            contextMenuContent
+        }
         .onHover { hovering in
             guard mode == .shotlist else {
                 return
@@ -306,17 +374,6 @@ struct ShotCardView: View {
         .buttonStyle(.borderedProminent)
         .controlSize(.small)
         .tint(LakaiTheme.accentStrong)
-    }
-
-    private func iconButton(_ systemImage: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemImage)
-                .font(.system(size: 11, weight: .bold))
-                .frame(width: 26, height: 26)
-        }
-        .buttonStyle(.plain)
-        .background(LakaiTheme.accentSoft)
-        .clipShape(Circle())
     }
 
     private func labeledField(title: String, text: Binding<String>, width: CGFloat) -> some View {
