@@ -70,18 +70,19 @@ struct PDFExportService {
                 )
             }
             let isPause = kind == .pause
+            let isOptional = !isPause && entry.shot?.isOptional == true
             return ScheduleTableRow(
                 rowKind: isPause ? .pause : .shot,
-                shotLabel: isPause ? "Pause" : (entry.shotNumber.map(String.init) ?? ""),
+                shotLabel: isPause ? "Pause" : (entry.shot.map { project.displayShotNumber(for: $0.id) } ?? ""),
                 size: entry.shot?.size.title ?? "",
-                setupStart: entry.setupStart.map(LakaiFormatters.timeString(from:)) ?? "",
-                shootStart: LakaiFormatters.timeString(from: entry.startTime),
-                shootEnd: LakaiFormatters.timeString(from: entry.endTime),
+                setupStart: isOptional ? "" : (entry.setupStart.map(LakaiFormatters.timeString(from:)) ?? ""),
+                shootStart: isOptional ? "" : LakaiFormatters.timeString(from: entry.startTime),
+                shootEnd: isOptional ? "" : LakaiFormatters.timeString(from: entry.endTime),
                 description: isPause ? entry.block.title : (entry.shot?.descriptionText ?? ""),
                 shotNotes: entry.shot?.notes ?? "",
                 scheduleNotes: entry.block.scheduleNotes,
                 imageFileName: entry.shot?.imageFileName,
-                backgroundColor: isPause ? entry.block.backgroundColor : entry.shot?.backgroundColor
+                backgroundColor: isPause ? entry.block.backgroundColor : (isOptional ? "F3F3F3" : entry.shot?.backgroundColor)
             )
         })
 

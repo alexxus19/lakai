@@ -318,7 +318,12 @@ Lakai is a native macOS directing tool for creating, organizing, versioning, and
 - Storyboard image areas in shot cards now accept direct drag-and-drop of image files from Finder/Desktop
 - If a shot already has an image, dropping a new file first prompts for confirmation before replacement
 
-## Acceptance Baseline
+### Header Navigation & Logo Layout Update (Current Pass)
+- "Übersicht" button replaced by a plain back arrow (chevron.left) with label, placed above the project title in a VStack
+- Logo buttons (Kundenlogo / Produktionslogo) are now right-aligned in the crew-info row via a Spacer, horizontally centered with the input fields
+- Schedule PDF export now mirrors storyboard optional-shot handling: optional shots render with F3F3F3 background, OPT_ prefixed shot labels, and empty time cells (Setup/Start/Ende)
+
+
 
 - A new project can be created from the overview.
 - Shots can be added, reordered, edited, tagged, and illustrated.

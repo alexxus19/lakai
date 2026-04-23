@@ -86,20 +86,26 @@ struct WorkspaceView: View {
     private func header(_ project: ProjectDocument) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                Button("Übersicht") {
-                    appState.closeProject()
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .foregroundStyle(LakaiTheme.ink)
+                VStack(alignment: .leading, spacing: 2) {
+                    Button(action: { appState.closeProject() }) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 10, weight: .semibold))
+                            Text("Übersicht")
+                                .font(.system(size: 10, weight: .semibold))
+                        }
+                        .foregroundStyle(LakaiTheme.mutedInk)
+                    }
+                    .buttonStyle(.plain)
 
-                TextField("Projekttitel", text: Binding(
-                    get: { appState.activeProject?.title ?? "" },
-                    set: { appState.updateProjectTitle($0) }
-                ))
-                .font(.system(size: 26, weight: .bold))
-                .textFieldStyle(.plain)
-                .foregroundStyle(LakaiTheme.ink)
+                    TextField("Projekttitel", text: Binding(
+                        get: { appState.activeProject?.title ?? "" },
+                        set: { appState.updateProjectTitle($0) }
+                    ))
+                    .font(.system(size: 26, weight: .bold))
+                    .textFieldStyle(.plain)
+                    .foregroundStyle(LakaiTheme.ink)
+                }
 
                 HStack(spacing: 8) {
                     versionPill(title: "Storyboard", value: "v\(project.storyboardVersion)")
@@ -136,6 +142,8 @@ struct WorkspaceView: View {
                 compactField("Producer", value: project.crewInfo.producer) { appState.updateCrewValue($0, at: \.producer) }
                 compactField("Kunde", value: project.crewInfo.client) { appState.updateCrewValue($0, at: \.client) }
                 compactField("DoP", value: project.crewInfo.dop) { appState.updateCrewValue($0, at: \.dop) }
+
+                Spacer(minLength: 0)
 
                 logoControls(kind: .client, imageURL: appState.logoURL(for: .client))
                 logoControls(kind: .production, imageURL: appState.logoURL(for: .production))
