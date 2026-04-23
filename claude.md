@@ -280,6 +280,9 @@ Lakai is a native macOS directing tool for creating, organizing, versioning, and
 - Color menu options now display human-readable color names (Mint, Peach, Sky, Rose, Cream, Lavender) with inline color preview circles
 - Context menu delete action available on all non-editable card surfaces for reliable rightclick activation
 
+### Shot Number Scale Update
+- In `Shotlist` view, shot number typography was increased by an additional 30% for stronger hierarchy, while notes field sizing remains unchanged
+
 ### Script Editor Readability Update
 - In `Skript` mode, the editor text and insertion cursor are now forced to white for clear contrast on dark backgrounds
 
@@ -288,9 +291,27 @@ Lakai is a native macOS directing tool for creating, organizing, versioning, and
 - Shot size selector value text is now explicitly white for stable contrast on dark card controls
 - Shot color context-menu labels now force primary menu text color while keeping colored dot previews, so both name and swatch remain visible
 
+### Focus & PDF Optional Marker Update
+- Clicking on non-input card/script surfaces now clears active text-field focus so the last edited field returns to default (unfocused) state
+- Storyboard PDF shot labels now use the same display numbering as the app, including `OPT_` prefixes for optional shots
+- Optional storyboard rows in PDF now render with a very light gray background tint for clear visual distinction
+
 ### Selector & Menu Reliability Pass
 - Shot size selection in cards now uses a custom app-styled popover list, ensuring the selected size label remains visible in white on dark controls
 - Color submenu entries now use native label rows with a tinted circle symbol and explicit color names for stable visibility in the macOS context menu
+
+### Custom Card Overlay Menu (Current Pass)
+- Shot card right-click actions now open a custom in-app overlay menu styled with Lakai theme panels instead of relying on the system context menu
+- Overlay menu includes optional toggle, duplicate, delete, and an expandable color-tone section with named options
+- Color choices are labeled by their actual tone names (Mint, Peach, Sky, Rose, Cream, Lavender) and include inline circle previews
+- Overlay placement now follows the actual right-click location on the card, matching expected context-menu behavior
+- Right-click capture now uses native AppKit mouse event handling (`rightMouseDown` and `Ctrl+Click`) to ensure reliable menu opening on macOS input devices
+- Card menu input capture is now centralized in a single full-card right-click layer to avoid conflicting subview event paths
+- Card overlay menu now dismisses on tap on free card surface, and the temporary right-click debug marker has been removed
+- Card overlay menus now render outside the clipped card shell so they are not cut off at card bounds
+- Only one shot card context menu can be open at a time; opening another card menu automatically replaces the previous one
+- Shotlist context menu rendering now lives on a global layer above the full shotlist surface (bound by shot card ID), so menu placement is no longer clipped by individual card bounds
+- Tapping anywhere in the shotlist surface outside the menu now closes the currently open shot context menu
 
 ## Acceptance Baseline
 

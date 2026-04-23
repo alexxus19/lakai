@@ -7,14 +7,14 @@ import ImageIO
 @MainActor
 struct PDFExportService {
     func exportStoryboard(project: ProjectDocument, destinationURL: URL, activeProjectURL: URL?, persistence: ProjectPersistenceService) throws -> URL {
-        let rows = project.orderedShots.enumerated().map { index, shot in
+        let rows = project.orderedShots.map { shot in
             StoryboardTableRow(
-                shotNumber: index + 1,
+                shotNumber: project.displayShotNumber(for: shot.id),
                 size: shot.size.title,
                 description: shot.descriptionText,
                 notes: shot.notes,
                 imageFileName: shot.imageFileName,
-                backgroundColor: shot.backgroundColor
+                backgroundColor: shot.isOptional ? "F3F3F3" : shot.backgroundColor
             )
         }
 
@@ -339,7 +339,7 @@ struct PDFExportService {
 
             switch column.key {
             case .shotNumber:
-                drawWrappedText(String(row.shotNumber), in: contentRect, context: context, font: metrics.bodyFont, alignment: .center)
+                drawWrappedText(row.shotNumber, in: contentRect, context: context, font: metrics.bodyFont, alignment: .center)
             case .size:
                 drawWrappedText(row.size, in: contentRect, context: context, font: metrics.bodyFont, alignment: .left)
             case .description:
@@ -674,7 +674,7 @@ private enum PDFColumnKey {
 // MARK: - Data Models
 
 private struct StoryboardTableRow {
-    let shotNumber: Int
+    let shotNumber: String
     let size: String
     let description: String
     let notes: String

@@ -2,6 +2,14 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+private struct ShotCardFramePreferenceKey: PreferenceKey {
+    static var defaultValue: [UUID: CGRect] = [:]
+
+    static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    }
+}
+
 struct WorkspaceView: View {
     @ObservedObject var appState: AppState
     private let scriptSync = ScriptSyncService()
@@ -15,6 +23,10 @@ struct WorkspaceView: View {
     @State private var setupDurationDraft: String = ""
     @State private var isShootDatePickerPresented = false
     @State private var isShootTimePickerPresented = false
+    @State private var activeShotCardMenuID: UUID?
+    @State private var activeShotCardMenuPosition: CGPoint = .zero
+    @State private var isShotColorSectionExpanded = false
+    @State private var shotCardFrames: [UUID: CGRect] = [:]
 
     private let dropGapHeight: CGFloat = 20
 
@@ -193,6 +205,10 @@ struct WorkspaceView: View {
                 metaPill(title: "Drehplan", value: "v\(project.scheduleVersion)")
             }
         }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            dismissActiveInput()
+        }
     }
 
     private var modeSwitch: some View {
@@ -224,50 +240,52 @@ struct WorkspaceView: View {
     }
 
     private func shotlistView(_ project: ProjectDocument) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text("Shotlist")
-                        .font(.system(size: 22, weight: .bold))
+        ZStack(alignment: .topLeading) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("Shotlist")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundStyle(LakaiTheme.ink)
+
+                        Spacer()
+
+                        Button("Shot hinzufügen") {
+                            appState.addShot()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .tint(LakaiTheme.accent)
                         .foregroundStyle(LakaiTheme.ink)
-
-                    Spacer()
-
-                    Button("Shot hinzufügen") {
-                        appState.addShot()
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .tint(LakaiTheme.accent)
-                    .foregroundStyle(LakaiTheme.ink)
-                }
 
-                LazyVStack(spacing: 10) {
-                    ForEach(Array(project.orderedShots.enumerated()), id: \.element.id) { index, shot in
-                        VStack(spacing: 0) {
-                            ShotCardView(
-                                shotNumber: project.displayShotNumber(for: shot.id),
-                                shot: shot,
-                                imageURL: appState.imageURL(for: shot),
-                                mode: .shotlist,
-                                onDelete: { appState.deleteShot(shot.id) },
-                                onImportImage: { appState.importShotImage(for: shot.id) },
-                                onRemoveImage: { appState.clearShotImage(shot.id) },
-                                onToggleOptional: { appState.toggleShotOptional(shot.id) },
-                                onSetBackgroundColor: { appState.setShotBackgroundColor(shot.id, color: $0) },
-                                onDuplicate: { appState.duplicateShot(shot.id) },
-                                sizeBinding: Binding(
-                                    get: { appState.activeProject?.shot(with: shot.id)?.size ?? .ms },
-                                    set: { appState.updateShotSize(shot.id, size: $0) }
-                                ),
-                                descriptionBinding: Binding(
-                                    get: { appState.activeProject?.shot(with: shot.id)?.descriptionText ?? "" },
-                                    set: { appState.updateShotDescription(shot.id, text: $0) }
-                                ),
-                                notesBinding: Binding(
-                                    get: { appState.activeProject?.shot(with: shot.id)?.notes ?? "" },
-                                    set: { appState.updateShotNotes(shot.id, text: $0) }
-                                ),
+                    LazyVStack(spacing: 10) {
+                        ForEach(Array(project.orderedShots.enumerated()), id: \.element.id) { index, shot in
+                            VStack(spacing: 0) {
+                                ShotCardView(
+                                    id: shot.id,
+                                    shotNumber: project.displayShotNumber(for: shot.id),
+                                    shot: shot,
+                                    imageURL: appState.imageURL(for: shot),
+                                    mode: .shotlist,
+                                    onDelete: { appState.deleteShot(shot.id) },
+                                    onImportImage: { appState.importShotImage(for: shot.id) },
+                                    onRemoveImage: { appState.clearShotImage(shot.id) },
+                                    onToggleOptional: { appState.toggleShotOptional(shot.id) },
+                                    onSetBackgroundColor: { appState.setShotBackgroundColor(shot.id, color: $0) },
+                                    onDuplicate: { appState.duplicateShot(shot.id) },
+                                    sizeBinding: Binding(
+                                        get: { appState.activeProject?.shot(with: shot.id)?.size ?? .ms },
+                                        set: { appState.updateShotSize(shot.id, size: $0) }
+                                    ),
+                                    descriptionBinding: Binding(
+                                        get: { appState.activeProject?.shot(with: shot.id)?.descriptionText ?? "" },
+                                        set: { appState.updateShotDescription(shot.id, text: $0) }
+                                    ),
+                                    notesBinding: Binding(
+                                        get: { appState.activeProject?.shot(with: shot.id)?.notes ?? "" },
+                                        set: { appState.updateShotNotes(shot.id, text: $0) }
+                                    ),
                                     setupBinding: Binding(
                                         get: { "" },
                                         set: { _ in }
@@ -275,39 +293,213 @@ struct WorkspaceView: View {
                                     durationBinding: Binding(
                                         get: { "" },
                                         set: { _ in }
-                                    )
-                            )
-                            .opacity(shot.isOptional ? 0.3 : 1.0)
-                            .scaleEffect(draggedShotID == shot.id ? 1.01 : 1)
-                            .overlay(reorderCardOverlay(isDragged: draggedShotID == shot.id))
-                            .zIndex(draggedShotID == shot.id ? 2 : 0)
-                            .onDrag {
-                                draggedShotID = shot.id
-                                return NSItemProvider(object: shot.id.uuidString as NSString)
-                            } preview: {
-                                dragPreviewPlaceholder
-                            }
-                            .onDrop(
-                                of: [UTType.text],
-                                delegate: ReorderDropDelegate(
-                                    itemID: shot.id,
-                                    orderedIDsProvider: { appState.activeProject?.shotOrder ?? [] },
-                                    draggedID: $draggedShotID,
-                                    insertAfterTarget: true,
-                                    onMove: { from, to in
-                                        appState.moveItemLive(in: .shotlist, from: from, to: to)
+                                    ),
+                                    onContextMenuRequest: { cardID, point in
+                                        openShotCardMenu(for: cardID, localPoint: point)
                                     }
                                 )
-                            )
+                                .background(
+                                    GeometryReader { proxy in
+                                        Color.clear
+                                            .preference(
+                                                key: ShotCardFramePreferenceKey.self,
+                                                value: [shot.id: proxy.frame(in: .named("shotlistContextLayer"))]
+                                            )
+                                    }
+                                )
+                                .opacity(shot.isOptional ? 0.3 : 1.0)
+                                .scaleEffect(draggedShotID == shot.id ? 1.01 : 1)
+                                .overlay(reorderCardOverlay(isDragged: draggedShotID == shot.id))
+                                .zIndex(draggedShotID == shot.id ? 2 : 0)
+                                .onDrag {
+                                    draggedShotID = shot.id
+                                    return NSItemProvider(object: shot.id.uuidString as NSString)
+                                } preview: {
+                                    dragPreviewPlaceholder
+                                }
+                                .onDrop(
+                                    of: [UTType.text],
+                                    delegate: ReorderDropDelegate(
+                                        itemID: shot.id,
+                                        orderedIDsProvider: { appState.activeProject?.shotOrder ?? [] },
+                                        draggedID: $draggedShotID,
+                                        insertAfterTarget: true,
+                                        onMove: { from, to in
+                                            appState.moveItemLive(in: .shotlist, from: from, to: to)
+                                        }
+                                    )
+                                )
+                            }
                         }
                     }
+                    .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.88), value: draggedShotID)
                 }
-                .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.88), value: draggedShotID)
             }
+
+            if activeShotCardMenuID != nil {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        closeShotCardMenu()
+                        dismissActiveInput()
+                    }
+                    .zIndex(80)
+            }
+
+            if let menuShot = activeMenuShot(project: project), activeShotCardMenuID != nil {
+                globalShotCardMenu(for: menuShot)
+                    .offset(x: activeShotCardMenuPosition.x + 6, y: activeShotCardMenuPosition.y + 6)
+                    .zIndex(100)
+            }
+        }
+        .coordinateSpace(name: "shotlistContextLayer")
+        .onPreferenceChange(ShotCardFramePreferenceKey.self) { frames in
+            shotCardFrames = frames
         }
         .onDrop(of: [UTType.text], isTargeted: nil) { _ in
             resetDragState()
+            closeShotCardMenu()
             return true
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            closeShotCardMenu()
+            dismissActiveInput()
+        }
+    }
+
+    private func dismissActiveInput() {
+        NSApp.keyWindow?.makeFirstResponder(nil)
+    }
+
+    private func openShotCardMenu(for cardID: UUID, localPoint: CGPoint) {
+        guard let frame = shotCardFrames[cardID] else {
+            return
+        }
+
+        activeShotCardMenuPosition = CGPoint(x: frame.minX + localPoint.x, y: frame.minY + localPoint.y)
+        activeShotCardMenuID = cardID
+        isShotColorSectionExpanded = false
+    }
+
+    private func closeShotCardMenu() {
+        activeShotCardMenuID = nil
+        isShotColorSectionExpanded = false
+    }
+
+    private func activeMenuShot(project: ProjectDocument) -> Shot? {
+        guard let id = activeShotCardMenuID else {
+            return nil
+        }
+        return project.shot(with: id)
+    }
+
+    private func globalShotCardMenu(for shot: Shot) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            globalMenuButton(
+                title: shot.isOptional ? "Als normal markieren" : "Als optional markieren",
+                systemImage: shot.isOptional ? "checkmark.circle.fill" : "circle"
+            ) {
+                appState.toggleShotOptional(shot.id)
+                closeShotCardMenu()
+            }
+
+            globalMenuButton(
+                title: isShotColorSectionExpanded ? "Farbtoene ausblenden" : "Farbtoene anzeigen",
+                systemImage: "paintpalette"
+            ) {
+                withAnimation(.easeInOut(duration: 0.14)) {
+                    isShotColorSectionExpanded.toggle()
+                }
+            }
+
+            if isShotColorSectionExpanded {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(LakaiTheme.shotColors, id: \.hex) { item in
+                        Button {
+                            appState.setShotBackgroundColor(shot.id, color: item.hex)
+                            closeShotCardMenu()
+                        } label: {
+                            HStack(spacing: 8) {
+                                Circle()
+                                    .fill(item.color)
+                                    .frame(width: 10, height: 10)
+                                Text(colorToneName(for: item.hex))
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(LakaiTheme.ink)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(LakaiTheme.panel.opacity(0.9))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Button {
+                        appState.setShotBackgroundColor(shot.id, color: nil)
+                        closeShotCardMenu()
+                    } label: {
+                        Label("Farbton entfernen", systemImage: "xmark.circle")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(LakaiTheme.ink)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(LakaiTheme.panel.opacity(0.9))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.leading, 20)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
+            Divider()
+                .overlay(LakaiTheme.panelBorder)
+
+            globalMenuButton(title: "Duplizieren", systemImage: "square.on.square") {
+                appState.duplicateShot(shot.id)
+                closeShotCardMenu()
+            }
+
+            globalMenuButton(title: "Shot loeschen", systemImage: "trash", tint: Color(red: 0.95, green: 0.55, blue: 0.55)) {
+                appState.deleteShot(shot.id)
+                closeShotCardMenu()
+            }
+        }
+        .padding(8)
+        .frame(width: 210)
+        .background(LakaiTheme.panelElevated.opacity(0.98))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(LakaiTheme.panelBorder, lineWidth: 1))
+        .shadow(color: Color.black.opacity(0.25), radius: 16, x: 0, y: 8)
+    }
+
+    private func globalMenuButton(title: String, systemImage: String, tint: Color = LakaiTheme.ink, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(tint)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(LakaiTheme.panel.opacity(0.72))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func colorToneName(for hex: String) -> String {
+        switch hex.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "#", with: "").uppercased() {
+        case "C8E6C9": return "Mint"
+        case "FFCCBC": return "Peach"
+        case "B3E5FC": return "Sky"
+        case "F8BBD0": return "Rose"
+        case "FFF9C4": return "Cream"
+        case "D1C4E9": return "Lavender"
+        default: return "Unbekannter Farbton"
         }
     }
 

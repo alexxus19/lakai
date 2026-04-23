@@ -9,6 +9,77 @@ private enum AssetImageCache {
     }()
 }
 
+private struct RightClickCaptureView: NSViewRepresentable {
+    let onRightClick: (CGPoint) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onRightClick: onRightClick)
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = RightClickableView()
+        view.onRightClick = context.coordinator.onRightClick
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.onRightClick = onRightClick
+        if let rightClickableView = nsView as? RightClickableView {
+            rightClickableView.onRightClick = onRightClick
+        }
+    }
+
+    final class Coordinator: NSObject {
+        var onRightClick: (CGPoint) -> Void
+
+        init(onRightClick: @escaping (CGPoint) -> Void) {
+            self.onRightClick = onRightClick
+        }
+
+    }
+
+    final class RightClickableView: NSView {
+        var onRightClick: ((CGPoint) -> Void)?
+
+        override var acceptsFirstResponder: Bool { true }
+
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+            true
+        }
+
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            guard let event = NSApp.currentEvent else {
+                return nil
+            }
+
+            if event.type == .rightMouseDown {
+                return self
+            }
+
+            if event.type == .leftMouseDown && event.modifierFlags.contains(.control) {
+                return self
+            }
+
+            return nil
+        }
+
+        override func rightMouseDown(with event: NSEvent) {
+            let point = convert(event.locationInWindow, from: nil)
+            onRightClick?(point)
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            if event.modifierFlags.contains(.control) {
+                let point = convert(event.locationInWindow, from: nil)
+                onRightClick?(point)
+                return
+            }
+
+            super.mouseDown(with: event)
+        }
+    }
+}
+
 struct CachedAssetImageView<Placeholder: View>: View {
     let imageURL: URL?
     let contentMode: ContentMode
@@ -69,6 +140,7 @@ struct CachedAssetImageView<Placeholder: View>: View {
 }
 
 struct ShotCardView: View {
+    let id: UUID
     let shotNumber: String
     let shot: Shot
     let imageURL: URL?
@@ -84,6 +156,7 @@ struct ShotCardView: View {
     let notesBinding: Binding<String>
     let setupBinding: Binding<String>
     let durationBinding: Binding<String>
+    let onContextMenuRequest: (UUID, CGPoint) -> Void
 
     @State private var isHoveringImage = false
     @State private var isSizePickerPresented = false
@@ -93,9 +166,6 @@ struct ShotCardView: View {
             metadataColumn
                 .frame(width: 88, alignment: .leading)
                 .contentShape(Rectangle())
-                .contextMenu {
-                    contextMenuContent
-                }
 
             VStack(alignment: .leading, spacing: 7) {
                 TextEditor(text: descriptionBinding)
@@ -134,16 +204,21 @@ struct ShotCardView: View {
         .clipShape(RoundedRectangle(cornerRadius: 18))
         .overlay(RoundedRectangle(cornerRadius: 18).stroke(LakaiTheme.panelBorder, lineWidth: 1))
         .contentShape(RoundedRectangle(cornerRadius: 18))
-        .contextMenu {
-            contextMenuContent
+        .overlay {
+            RightClickCaptureView {
+                onContextMenuRequest(id, $0)
+            }
         }
         .shadow(color: Color.black.opacity(0.035), radius: 12, x: 0, y: 6)
+        .onTapGesture {
+            NSApp.keyWindow?.makeFirstResponder(nil)
+        }
     }
 
     private var metadataColumn: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("#\(shotNumber)")
-                .font(.system(size: 16, weight: .bold))
+                .font(.system(size: mode == .shotlist ? 21 : 16, weight: .bold))
                 .foregroundStyle(LakaiTheme.ink)
                 .lineLimit(1)
 
@@ -226,63 +301,6 @@ struct ShotCardView: View {
         return LakaiTheme.panel.opacity(0.96)
     }
 
-    private var contextMenuContent: some View {
-        Group {
-            Button(action: onToggleOptional) {
-                Label(shot.isOptional ? "Als normal markieren" : "Als optional markieren", systemImage: shot.isOptional ? "checkmark.circle.fill" : "circle")
-            }
-
-            Menu {
-                ForEach(LakaiTheme.shotColors, id: \.hex) { item in
-                    Button {
-                        onSetBackgroundColor(item.hex)
-                    } label: {
-                        Label(colorName(for: item.hex), systemImage: "circle.fill")
-                            .symbolRenderingMode(.palette)
-                            .foregroundStyle(item.color, Color.primary)
-                    }
-                }
-
-                Divider()
-
-                Button {
-                    onSetBackgroundColor(nil)
-                } label: {
-                    Label("Farbe entfernen", systemImage: "xmark.circle")
-                }
-            } label: {
-                Label("Farbe", systemImage: "paintpalette")
-            }
-
-            Divider()
-
-            Button(action: onDuplicate) {
-                Label("Duplizieren", systemImage: "square.on.square")
-            }
-
-            if mode == .shotlist {
-                Divider()
-
-                Button(role: .destructive, action: onDelete) {
-                    Label("Shot loeschen", systemImage: "trash")
-                }
-            }
-        }
-    }
-
-    private func colorName(for hex: String) -> String {
-        let normalizedHex = hex.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "#", with: "").uppercased()
-        switch normalizedHex {
-        case "BFE8D2": return "Mint"
-        case "F6D3C6": return "Peach"
-        case "C7DEF4": return "Sky"
-        case "F2C8D8": return "Rose"
-        case "F7ECC6": return "Cream"
-        case "DDD3F8": return "Lavender"
-        default: return "Farbe"
-        }
-    }
-
     private func colorFromHex(_ hex: String) -> Color? {
         let trimmed = hex.trimmingCharacters(in: .whitespaces).uppercased()
         guard trimmed.count == 6 else { return nil }
@@ -344,9 +362,6 @@ struct ShotCardView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(LakaiTheme.panelBorder, lineWidth: 1))
         .contentShape(RoundedRectangle(cornerRadius: 16))
-        .contextMenu {
-            contextMenuContent
-        }
         .onHover { hovering in
             guard mode == .shotlist else {
                 return
