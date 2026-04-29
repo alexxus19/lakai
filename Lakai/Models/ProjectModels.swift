@@ -147,6 +147,14 @@ struct SceneDivider: Identifiable, Codable, Hashable {
     var title: String = ""
 }
 
+struct CastMember: Identifiable, Codable, Hashable {
+    var id: UUID = UUID()
+    var name: String = ""
+    var colorHex: String = ""
+    var dayBlockID: UUID? = nil
+    var showInAllDays: Bool = false
+}
+
 struct ProjectSummary: Identifiable, Hashable {
     let title: String
     let folderURL: URL
@@ -187,6 +195,8 @@ struct Shot: Identifiable, Codable, Hashable {
     var durationSeconds: Int = 20 * 60
     var isOptional: Bool = false
     var backgroundColor: String? = nil
+    var castMemberIDs: [UUID] = []
+    var autoMatchedCastIDs: [UUID] = []
 }
 
 struct ScheduleBlock: Identifiable, Codable, Hashable {
@@ -219,6 +229,7 @@ struct ProjectDocument: Identifiable, Codable {
     var scriptText: String = ""
     var crewInfo: CrewInfo = CrewInfo()
     var scheduleSettings: ScheduleSettings = ScheduleSettings()
+    var castMembers: [CastMember] = []
 
     var orderedShots: [Shot] {
         let lookup = Dictionary(uniqueKeysWithValues: shots.map { ($0.id, $0) })
@@ -371,6 +382,39 @@ struct ProjectDocument: Identifiable, Codable {
                 scheduleNotes: ""
             )
         )
+        autoMatchNewShot(shot.id)
+    }
+
+    mutating func autoMatchNewCastMember(_ member: CastMember) {
+        let memberName = member.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        // Auto-match by name: fire once per shot where name appears in description.
+        guard !memberName.isEmpty else { return }
+        for i in shots.indices {
+            guard !shots[i].autoMatchedCastIDs.contains(member.id) else { continue }
+            if shots[i].descriptionText.lowercased().contains(memberName) {
+                if !shots[i].castMemberIDs.contains(member.id) {
+                    shots[i].castMemberIDs.append(member.id)
+                }
+                shots[i].autoMatchedCastIDs.append(member.id)
+            }
+        }
+    }
+
+    mutating func autoMatchNewShot(_ shotID: UUID) {
+        guard let shotIndex = shots.firstIndex(where: { $0.id == shotID }) else { return }
+        let descLower = shots[shotIndex].descriptionText.lowercased()
+        for member in castMembers {
+            // Auto-match by name.
+            let memberName = member.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !memberName.isEmpty else { continue }
+            guard !shots[shotIndex].autoMatchedCastIDs.contains(member.id) else { continue }
+            if descLower.contains(memberName) {
+                if !shots[shotIndex].castMemberIDs.contains(member.id) {
+                    shots[shotIndex].castMemberIDs.append(member.id)
+                }
+                shots[shotIndex].autoMatchedCastIDs.append(member.id)
+            }
+        }
     }
 
     mutating func addSceneDivider() {

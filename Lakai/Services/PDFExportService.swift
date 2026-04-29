@@ -95,6 +95,11 @@ struct PDFExportService {
             }
             let isPause = kind == .pause
             let isOptional = !isPause && entry.shot?.isOptional == true
+            let castNames: String = {
+                guard let shot = entry.shot else { return "" }
+                let memberLookup = Dictionary(uniqueKeysWithValues: project.castMembers.map { ($0.id, $0.name) })
+                return shot.castMemberIDs.compactMap { memberLookup[$0] }.joined(separator: ", ")
+            }()
             return ScheduleTableRow(
                 rowKind: isPause ? .pause : .shot,
                 shotLabel: isPause ? "Pause" : (entry.shot.map { project.displayShotNumber(for: $0.id) } ?? ""),
@@ -105,6 +110,7 @@ struct PDFExportService {
                 description: isPause ? entry.block.title : (entry.shot?.descriptionText ?? ""),
                 shotNotes: entry.shot?.notes ?? "",
                 scheduleNotes: entry.block.scheduleNotes,
+                castNames: castNames,
                 imageFileName: entry.shot?.imageFileName,
                 backgroundColor: isPause ? entry.block.backgroundColor : (isOptional ? "F3F3F3" : entry.shot?.backgroundColor)
             )
@@ -497,6 +503,8 @@ struct PDFExportService {
                 drawWrappedText(row.shotLabel, in: contentRect, context: context, font: metrics.bodyFont, alignment: .center)
             case .size:
                 drawWrappedText(row.size, in: contentRect, context: context, font: metrics.bodyFont, alignment: .left)
+            case .cast:
+                drawWrappedText(row.castNames, in: contentRect, context: context, font: metrics.bodyFont, alignment: .left)
             case .setupStart:
                 drawWrappedText(row.setupStart, in: contentRect, context: context, font: metrics.bodyFont, alignment: .center)
             case .shootStart:
@@ -714,9 +722,10 @@ struct PDFExportService {
             PDFColumn(title: "Start", key: .shootStart, width: 48, alignment: .center),
             PDFColumn(title: "Ende", key: .shootEnd, width: 48, alignment: .center),
             PDFColumn(title: "Groesse", key: .size, width: 72, alignment: .left),
-            PDFColumn(title: "Beschreibung", key: .description, width: 180, alignment: .left),
-            PDFColumn(title: "Shot-Notizen", key: .shotNotes, width: 120, alignment: .left),
-            PDFColumn(title: "Plan-Notizen", key: .scheduleNotes, width: 120, alignment: .left),
+            PDFColumn(title: "Cast", key: .cast, width: 72, alignment: .left),
+            PDFColumn(title: "Beschreibung", key: .description, width: 148, alignment: .left),
+            PDFColumn(title: "Shot-Notizen", key: .shotNotes, width: 100, alignment: .left),
+            PDFColumn(title: "Plan-Notizen", key: .scheduleNotes, width: 100, alignment: .left),
             PDFColumn(title: "Bild", key: .image, width: metrics.tableWidth - 692, alignment: .left)
         ]
     }
@@ -759,6 +768,7 @@ private struct PDFColumn {
 private enum PDFColumnKey {
     case shotNumber
     case size
+    case cast
     case setupStart
     case shootStart
     case shootEnd
@@ -792,6 +802,7 @@ private struct ScheduleTableRow {
     let description: String
     let shotNotes: String
     let scheduleNotes: String
+    let castNames: String
     let imageFileName: String?
     let backgroundColor: String?
     // Day header metadata (only used when rowKind == .dayHeader)
@@ -799,7 +810,7 @@ private struct ScheduleTableRow {
     let dayStartMinutes: Int
     let isBUnit: Bool
 
-    init(rowKind: ScheduleTableRowKind, shotLabel: String, size: String, setupStart: String, shootStart: String, shootEnd: String, description: String, shotNotes: String, scheduleNotes: String, imageFileName: String?, backgroundColor: String?, dayDate: Date? = nil, dayStartMinutes: Int = 0, isBUnit: Bool = false) {
+    init(rowKind: ScheduleTableRowKind, shotLabel: String, size: String, setupStart: String, shootStart: String, shootEnd: String, description: String, shotNotes: String, scheduleNotes: String, castNames: String = "", imageFileName: String?, backgroundColor: String?, dayDate: Date? = nil, dayStartMinutes: Int = 0, isBUnit: Bool = false) {
         self.rowKind = rowKind
         self.shotLabel = shotLabel
         self.size = size
@@ -809,6 +820,7 @@ private struct ScheduleTableRow {
         self.description = description
         self.shotNotes = shotNotes
         self.scheduleNotes = scheduleNotes
+        self.castNames = castNames
         self.imageFileName = imageFileName
         self.backgroundColor = backgroundColor
         self.dayDate = dayDate

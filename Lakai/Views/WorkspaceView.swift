@@ -56,6 +56,10 @@ struct WorkspaceView: View {
     @State private var activeDividerMenuID: UUID? = nil
     @State private var activeDividerMenuPosition: CGPoint = .zero
     @State private var sceneDividerFrames: [UUID: CGRect] = [:]
+    @State private var isSetupCastPanelOpen = false
+    @State private var castManagementOpenDayID: UUID? = nil
+    @State private var castNameDraft = ""
+    @State private var castColorDraftIndex = 0
 
     private let dropGapHeight: CGFloat = 20
 
@@ -707,6 +711,14 @@ struct WorkspaceView: View {
             dayHeaderNumbers[block.id] = dayCount
         }
 
+        // Compute drehtag lookup: scheduleBlockID → dayBlockID (nil = TAG 1 / setup day)
+        var shotDayBlockLookup: [UUID: UUID?] = [:]
+        var currentDayIDForLookup: UUID? = nil
+        for block in orderedBlocks {
+            if block.kind == .dayHeader { currentDayIDForLookup = block.id }
+            else if block.kind == .shot { shotDayBlockLookup[block.id] = currentDayIDForLookup }
+        }
+
         let scheduleContent = ScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
@@ -750,7 +762,7 @@ struct WorkspaceView: View {
                             } else if let shotID = block.shotID,
                                       let shot = project.shot(with: shotID),
                                       let entry = entryLookup[block.id] {
-                                scheduleShotCard(for: block, shot: shot, entry: entry, isLastBlock: orderedBlocks.last?.id == block.id, isFirstShot: firstShotBlockIDs.contains(block.id))
+                                scheduleShotCard(for: block, shot: shot, entry: entry, isLastBlock: orderedBlocks.last?.id == block.id, isFirstShot: firstShotBlockIDs.contains(block.id), dayBlockID: shotDayBlockLookup[block.id] ?? nil)
                                     .background(
                                         GeometryReader { proxy in
                                             Color.clear.preference(
@@ -898,6 +910,17 @@ struct WorkspaceView: View {
             }
 
             Spacer(minLength: 0)
+
+            Button("Cast") {
+                isSetupCastPanelOpen.toggle()
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .tint(LakaiTheme.accentStrong)
+            .foregroundStyle(LakaiTheme.ink)
+            .popover(isPresented: $isSetupCastPanelOpen, arrowEdge: .bottom) {
+                castManagementPanel(dayBlockID: nil, project: project)
+            }
         }
         .padding(12)
         .background(LakaiTheme.panel.opacity(0.96))
@@ -905,8 +928,9 @@ struct WorkspaceView: View {
         .overlay(RoundedRectangle(cornerRadius: 18).stroke(LakaiTheme.panelBorder, lineWidth: 1))
     }
 
-    private func scheduleShotCard(for block: ScheduleBlock, shot: Shot, entry: CalculatedScheduleEntry, isLastBlock: Bool, isFirstShot: Bool = false) -> some View {
-        HStack(alignment: .top, spacing: 10) {
+    private func scheduleShotCard(for block: ScheduleBlock, shot: Shot, entry: CalculatedScheduleEntry, isLastBlock: Bool, isFirstShot: Bool = false, dayBlockID: UUID? = nil) -> some View {
+        let project = appState.activeProject
+        return HStack(alignment: .top, spacing: 10) {
             if shot.isOptional {
                 Color.clear.frame(width: 84)
             } else {
@@ -933,6 +957,13 @@ struct WorkspaceView: View {
                             Text("Wrap")
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundStyle(LakaiTheme.mutedInk)
+                        }
+                    }
+
+                    if let project {
+                        let visibleMembers = project.castMembers.filter { $0.showInAllDays || $0.dayBlockID == dayBlockID }
+                        if !visibleMembers.isEmpty {
+                            castChipsRow(for: shot, visibleMembers: visibleMembers)
                         }
                     }
 
@@ -1060,6 +1091,188 @@ struct WorkspaceView: View {
             .overlay(RoundedRectangle(cornerRadius: 10).stroke(LakaiTheme.panelBorder, lineWidth: 1))
         }
         .frame(width: 84, alignment: .topLeading)
+    }
+
+    // MARK: - Cast Chips
+
+    @ViewBuilder
+    private func castChipsRow(for shot: Shot, visibleMembers: [CastMember]) -> some View {
+        CastChipFlowLayout(spacing: 6) {
+            ForEach(visibleMembers) { member in
+                let isActive = shot.castMemberIDs.contains(member.id)
+                let chipColor = castColor(for: member.colorHex)
+                Button {
+                    appState.toggleCastForShot(castMemberID: member.id, shotID: shot.id)
+                } label: {
+                    Text(member.name.isEmpty ? "?" : member.name)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Color.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(isActive ? chipColor : chipColor.opacity(0.22))
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(chipColor.opacity(isActive ? 0 : 0.55), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func castColor(for hex: String) -> Color {
+        let trimmed = hex.trimmingCharacters(in: .whitespaces).uppercased()
+        guard trimmed.count == 6 else { return LakaiTheme.accentStrong }
+        let scanner = Scanner(string: trimmed)
+        var rgb: UInt64 = 0
+        guard scanner.scanHexInt64(&rgb) else { return LakaiTheme.accentStrong }
+        return Color(
+            red: Double((rgb >> 16) & 0xFF) / 255.0,
+            green: Double((rgb >> 8) & 0xFF) / 255.0,
+            blue: Double(rgb & 0xFF) / 255.0
+        )
+    }
+
+    // MARK: - Cast Management Panel
+
+    @ViewBuilder
+    private func castManagementPanel(dayBlockID: UUID?, project: ProjectDocument) -> some View {
+        let dayMembers = project.castMembers.filter { $0.dayBlockID == dayBlockID }
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Cast verwalten")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(LakaiTheme.ink)
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    // Add new member row
+                    HStack(spacing: 8) {
+                        TextField("Name...", text: $castNameDraft)
+                            .textFieldStyle(.plain)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(LakaiTheme.accentSoft)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .foregroundStyle(LakaiTheme.ink)
+                            .font(.system(size: 12, weight: .medium))
+                            .onSubmit {
+                                addCastMemberFromDraft(dayBlockID: dayBlockID)
+                            }
+
+                        castColorPickerButton(selectedIndex: castColorDraftIndex) { idx in
+                            castColorDraftIndex = idx
+                        }
+
+                        Button {
+                            addCastMemberFromDraft(dayBlockID: dayBlockID)
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.system(size: 11, weight: .bold))
+                                .frame(width: 28, height: 28)
+                        }
+                        .buttonStyle(.plain)
+                        .background(LakaiTheme.accentStrong)
+                        .clipShape(Circle())
+                        .foregroundStyle(LakaiTheme.ink)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+
+                    if !dayMembers.isEmpty {
+                        Divider().padding(.horizontal, 16)
+
+                        ForEach(dayMembers) { member in
+                            castMemberRow(member: member)
+                        }
+                        .padding(.bottom, 8)
+                    }
+                }
+            }
+            .frame(minHeight: 120)
+        }
+        .frame(width: 460)
+        .frame(minHeight: 200)
+        .background(LakaiTheme.panel)
+    }
+
+    private func addCastMemberFromDraft(dayBlockID: UUID?) {
+        let trimmed = castNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let hex = LakaiTheme.castColors[castColorDraftIndex % LakaiTheme.castColors.count].hex
+        appState.addCastMember(name: trimmed, colorHex: hex, showInAllDays: false, dayBlockID: dayBlockID)
+        castNameDraft = ""
+        castColorDraftIndex = (castColorDraftIndex + 1) % LakaiTheme.castColors.count
+    }
+
+    @ViewBuilder
+    private func castMemberRow(member: CastMember) -> some View {
+        let colorIdx = LakaiTheme.castColors.firstIndex(where: { $0.hex == member.colorHex }) ?? 0
+        HStack(spacing: 8) {
+            TextField("Name", text: Binding(
+                get: { member.name },
+                set: { appState.updateCastMember(id: member.id, name: $0, colorHex: member.colorHex, showInAllDays: member.showInAllDays) }
+            ))
+            .textFieldStyle(.plain)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(LakaiTheme.accentSoft)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .foregroundStyle(LakaiTheme.ink)
+            .font(.system(size: 12, weight: .medium))
+
+            castColorPickerButton(selectedIndex: colorIdx) { idx in
+                appState.updateCastMember(
+                    id: member.id,
+                    name: member.name,
+                    colorHex: LakaiTheme.castColors[idx].hex,
+                    showInAllDays: member.showInAllDays
+                )
+            }
+
+            Toggle(isOn: Binding(
+                get: { member.showInAllDays },
+                set: { appState.updateCastMember(id: member.id, name: member.name, colorHex: member.colorHex, showInAllDays: $0) }
+            )) {
+                Text("in allen Drehtagen anzeigen")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(LakaiTheme.mutedInk)
+            }
+            .toggleStyle(.checkbox)
+
+            Spacer(minLength: 0)
+
+            Button {
+                appState.deleteCastMember(id: member.id)
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 10))
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.plain)
+            .background(LakaiTheme.accentSoft)
+            .clipShape(Circle())
+            .foregroundStyle(LakaiTheme.mutedInk)
+        }
+        .padding(.horizontal, 16)
+    }
+
+    @ViewBuilder
+    private func castColorPickerButton(selectedIndex: Int, onSelect: @escaping (Int) -> Void) -> some View {
+        HStack(spacing: 5) {
+            ForEach(LakaiTheme.castColors.indices, id: \.self) { idx in
+                let isSelected = idx == selectedIndex
+                Circle()
+                    .fill(LakaiTheme.castColors[idx].color)
+                    .frame(width: 18, height: 18)
+                    .overlay(Circle().stroke(Color.white, lineWidth: isSelected ? 2 : 0))
+                    .overlay(Circle().stroke(LakaiTheme.castColors[idx].color.opacity(0.4), lineWidth: isSelected ? 0 : 1))
+                    .scaleEffect(isSelected ? 1.15 : 1)
+                    .onTapGesture { onSelect(idx) }
+            }
+        }
     }
 
     private func pauseCard(for block: ScheduleBlock, entry: CalculatedScheduleEntry?) -> some View {
@@ -1258,6 +1471,22 @@ struct WorkspaceView: View {
             .foregroundStyle(LakaiTheme.ink)
 
             Spacer(minLength: 0)
+
+            if let project = appState.activeProject {
+                Button("Cast") {
+                    castManagementOpenDayID = (castManagementOpenDayID == block.id) ? nil : block.id
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .tint(LakaiTheme.accentStrong)
+                .foregroundStyle(LakaiTheme.ink)
+                .popover(isPresented: Binding(
+                    get: { castManagementOpenDayID == block.id },
+                    set: { if !$0 { castManagementOpenDayID = nil } }
+                ), arrowEdge: .bottom) {
+                    castManagementPanel(dayBlockID: block.id, project: project)
+                }
+            }
 
             Button {
                 appState.deleteScheduleBlock(block.id)
@@ -1560,5 +1789,48 @@ private struct ReorderDropDelegate: DropDelegate {
     func performDrop(info: DropInfo) -> Bool {
         draggedID = nil
         return true
+    }
+}
+
+// MARK: - Cast Chip Flow Layout
+
+private struct CastChipFlowLayout: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) -> CGSize {
+        let availableWidth = proposal.width ?? .infinity
+        var y: CGFloat = 0
+        var x: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > availableWidth && x > 0 {
+                y += rowHeight + spacing
+                x = 0
+                rowHeight = 0
+            }
+            rowHeight = max(rowHeight, size.height)
+            x += size.width + spacing
+        }
+        y += rowHeight
+        return CGSize(width: availableWidth, height: max(y, 0))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) {
+        let availableWidth = bounds.width
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > bounds.minX + availableWidth && x > bounds.minX {
+                y += rowHeight + spacing
+                x = bounds.minX
+                rowHeight = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            rowHeight = max(rowHeight, size.height)
+            x += size.width + spacing
+        }
     }
 }

@@ -24,6 +24,16 @@ enum LakaiTheme {
         ("FFF9C4", Color(red: 1.00, green: 0.97, blue: 0.77)),  // Warm cream
         ("D1C4E9", Color(red: 0.82, green: 0.77, blue: 0.91))   // Soft lavender
     ]
+
+    // Cast member chip colors — vivid, high-contrast with white text on dark panels.
+    static let castColors: [(hex: String, color: Color, name: String)] = [
+        ("D64545", Color(red: 0.84, green: 0.27, blue: 0.27), "Rot"),
+        ("C47B1A", Color(red: 0.77, green: 0.48, blue: 0.10), "Orange"),
+        ("2E8B57", Color(red: 0.18, green: 0.55, blue: 0.34), "Grün"),
+        ("2A6EBB", Color(red: 0.16, green: 0.43, blue: 0.73), "Blau"),
+        ("6B46C1", Color(red: 0.42, green: 0.27, blue: 0.76), "Lila"),
+        ("B5386C", Color(red: 0.71, green: 0.22, blue: 0.42), "Pink")
+    ]
 }
 
 

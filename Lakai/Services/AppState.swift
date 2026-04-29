@@ -547,6 +547,45 @@ final class AppState: ObservableObject {
         }
     }
 
+    func addCastMember(name: String, colorHex: String, showInAllDays: Bool, dayBlockID: UUID? = nil) {
+        let member = CastMember(id: UUID(), name: name, colorHex: colorHex, dayBlockID: dayBlockID, showInAllDays: showInAllDays)
+        mutateProject { project in
+            project.castMembers.append(member)
+            project.autoMatchNewCastMember(member)
+        }
+    }
+
+    func updateCastMember(id: UUID, name: String, colorHex: String, showInAllDays: Bool) {
+        mutateProject(syncScriptFromShots: false) { project in
+            guard let index = project.castMembers.firstIndex(where: { $0.id == id }) else { return }
+            project.castMembers[index].name = name
+            project.castMembers[index].colorHex = colorHex
+            project.castMembers[index].showInAllDays = showInAllDays
+        }
+    }
+
+    func deleteCastMember(id: UUID) {
+        mutateProject { project in
+            project.castMembers.removeAll(where: { $0.id == id })
+            for i in project.shots.indices {
+                project.shots[i].castMemberIDs.removeAll(where: { $0 == id })
+                project.shots[i].autoMatchedCastIDs.removeAll(where: { $0 == id })
+            }
+        }
+    }
+
+    func toggleCastForShot(castMemberID: UUID, shotID: UUID) {
+        mutateProject(syncScriptFromShots: false) { project in
+            project.updateShot(id: shotID) { shot in
+                if shot.castMemberIDs.contains(castMemberID) {
+                    shot.castMemberIDs.removeAll(where: { $0 == castMemberID })
+                } else {
+                    shot.castMemberIDs.append(castMemberID)
+                }
+            }
+        }
+    }
+
     private func mutateProject(animated: Bool = false, syncScriptFromShots: Bool = true, _ mutate: (inout ProjectDocument) -> Void) {
         guard var project = activeProject, let activeProjectURL else {
             return

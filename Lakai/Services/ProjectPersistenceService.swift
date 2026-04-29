@@ -109,7 +109,9 @@ struct ProjectPersistenceService {
                     setupSeconds: Int(shotElement.childText(for: "setupSeconds") ?? String(legacyDefaultSetupSeconds)) ?? legacyDefaultSetupSeconds,
                     durationSeconds: Int(shotElement.childText(for: "durationSeconds") ?? "1200") ?? 1200,
                     isOptional: shotElement.childText(for: "isOptional") == "true",
-                    backgroundColor: shotElement.childText(for: "backgroundColor")
+                    backgroundColor: shotElement.childText(for: "backgroundColor"),
+                    castMemberIDs: (shotElement.childText(for: "castMemberIDs") ?? "").split(separator: ",").compactMap { UUID(uuidString: String($0).trimmingCharacters(in: .whitespaces)) },
+                    autoMatchedCastIDs: (shotElement.childText(for: "autoMatchedCastIDs") ?? "").split(separator: ",").compactMap { UUID(uuidString: String($0).trimmingCharacters(in: .whitespaces)) }
                 )
             }
         }
@@ -139,6 +141,21 @@ struct ProjectPersistenceService {
         } else {
             // Migration: build shotlistItemOrder from legacy shotOrder (shots only, no dividers).
             project.shotlistItemOrder = project.shotOrder.map { ShotlistItemRef(kind: .shot, id: $0) }
+        }
+
+        // Load cast members.
+        if let castMembersElement = root.firstElement(named: "castMembers") {
+            project.castMembers = castMembersElement.elements(forName: "castMember").compactMap { el in
+                guard let idStr = el.attribute(forName: "id")?.stringValue,
+                      let id = UUID(uuidString: idStr) else { return nil }
+                return CastMember(
+                    id: id,
+                    name: el.childText(for: "name") ?? "",
+                    colorHex: el.childText(for: "colorHex") ?? "",
+                    dayBlockID: el.childText(for: "dayBlockID").flatMap { UUID(uuidString: $0) },
+                    showInAllDays: el.childText(for: "showInAllDays") == "true"
+                )
+            }
         }
 
         if let scheduleBlocksElement = root.firstElement(named: "scheduleBlocks") {
@@ -232,6 +249,8 @@ struct ProjectPersistenceService {
             shotElement.addChild(XMLElement(name: "durationSeconds", stringValue: String(shot.durationSeconds)))
             shotElement.addChild(XMLElement(name: "isOptional", stringValue: shot.isOptional ? "true" : "false"))
             shotElement.addChild(XMLElement(name: "backgroundColor", stringValue: shot.backgroundColor))
+            shotElement.addChild(XMLElement(name: "castMemberIDs", stringValue: shot.castMemberIDs.map(\.uuidString).joined(separator: ",")))
+            shotElement.addChild(XMLElement(name: "autoMatchedCastIDs", stringValue: shot.autoMatchedCastIDs.map(\.uuidString).joined(separator: ",")))
             shots.addChild(shotElement)
         }
         root.addChild(shots)
@@ -263,6 +282,22 @@ struct ProjectPersistenceService {
             shotlistItemOrder.addChild(el)
         }
         root.addChild(shotlistItemOrder)
+
+        let castMembersEl = XMLElement(name: "castMembers")
+        for member in project.castMembers {
+            let el = XMLElement(name: "castMember")
+            if let attr = XMLNode.attribute(withName: "id", stringValue: member.id.uuidString) as? XMLNode {
+                el.addAttribute(attr)
+            }
+            el.addChild(XMLElement(name: "name", stringValue: member.name))
+            el.addChild(XMLElement(name: "colorHex", stringValue: member.colorHex))
+            if let dayBlockID = member.dayBlockID {
+                el.addChild(XMLElement(name: "dayBlockID", stringValue: dayBlockID.uuidString))
+            }
+            el.addChild(XMLElement(name: "showInAllDays", stringValue: member.showInAllDays ? "true" : "false"))
+            castMembersEl.addChild(el)
+        }
+        root.addChild(castMembersEl)
 
         let scheduleBlocks = XMLElement(name: "scheduleBlocks")
         for block in project.scheduleBlocks {

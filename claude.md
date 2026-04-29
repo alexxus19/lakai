@@ -6,6 +6,8 @@ Lakai is a native macOS directing tool for creating, organizing, versioning, and
 
 ## Non-Negotiable Scope
 
+> **PRIO 1 — DOKUMENTATIONSPFLICHT**: Jede funktionale, strukturelle oder UX-Änderung muss sofort in `claude.md` (Session log + betroffene Abschnitte) nachgetragen werden. Keine Implementierung gilt als abgeschlossen ohne aktualisierten Dokumentationsstand.
+
 1. The app name is Lakai.
 2. The app is a native macOS app built with SwiftUI.
 3. The app supports project overview, script editing, shotlist editing, shooting schedule planning, PDF export, XML persistence, image attachment, and ZIP import/export.
@@ -113,6 +115,10 @@ Lakai is a native macOS directing tool for creating, organizing, versioning, and
 - Schedule shot cards provide a separate editable `Notizen` field for schedule-specific notes.
 - Optional shots display at 30% opacity and hide time rails (setup/shoot durations) to indicate they are not scheduled.
 - Shooting schedule PDF export uses the schedule order and increments the schedule version.
+- Each Drehtag divider has a "Cast" button that opens a cast management panel scoped to that day.
+- Cast members belong to one drehtag (`dayBlockID`); enabling "in allen Drehtagen anzeigen" makes them visible on all days without re-assigning them.
+- Cast member chips appear on schedule shot cards, filtered by the card's drehtag; chips can be toggled per shot.
+- Schedule PDF includes a `Cast` column showing active cast names per row.
 
 ### Persistence and File Exchange
 - Every project lives in its own folder.
@@ -323,6 +329,30 @@ Lakai is a native macOS directing tool for creating, organizing, versioning, and
 - Logo buttons (Kundenlogo / Produktionslogo) are now right-aligned in the crew-info row via a Spacer, horizontally centered with the input fields
 - Schedule PDF export now mirrors storyboard optional-shot handling: optional shots render with F3F3F3 background, OPT_ prefixed shot labels, and empty time cells (Setup/Start/Ende)
 
+### Scene Dividers in Shotlist
+- Shotlist supports mixed item order (`shotlistItemOrder: [ShotlistItemRef]`) containing both shots and scene dividers
+- New `SceneDivider` model with `id` and `title`; persisted in XML under `<sceneDividers>` and `<shotlistItemOrder>`
+- "Neue Szene" button adds a scene divider; first divider is inserted at index 0, subsequent ones appended
+- Scene dividers are draggable and reorderable alongside shots
+- Scene dividers display an editable title field (bold, size 14) and a "Szene N" badge
+- Scene numbers start at 1; first divider = Szene 1, second = Szene 2, etc.
+- Right-click on a scene divider opens a global overlay menu (same pattern as shot card menus) with a single "Szene löschen" action
+- Shot numbering with dividers uses format `{scene}-{pos}` (e.g. `1-3`, `2-OPT_1`); without dividers, plain `1`, `2`, `OPT_1` numbering is preserved
+- Optional shots use `{scene}-OPT_{pos}` format when dividers exist
+- Scene dividers do not appear in the shooting schedule; shot labels in the schedule still show scene-aware numbering
+- PDF storyboard export renders scene headers as full-width gray band rows between shot rows
+- `shotOrder` (schedule-compatible) is derived from `shotlistItemOrder` by filtering `.shot` refs only
+- XML migration: legacy projects without `<shotlistItemOrder>` auto-build it from `<shotOrder>` as plain shot refs
+
+### Script Parser Scene Divider Support
+- Script lines starting with `##` or `###` (Markdown headings level 2/3) are recognized as scene dividers
+- The heading text after the `##`/`###` prefix becomes the divider title
+- Shot marker lines (`•`, `-`, `*`, `#`, `- [ ]`) following a heading are grouped under that scene
+- `composeScript()` emits `### {title}` headers when regenerating script text from the shotlist
+- `attributedScript()` styles heading lines in muted bold white for visual distinction in the editor
+- `shotDescriptionLine()` guards against treating `##` lines as shots (since `#` is a shot marker prefix)
+- `AppState.updateScriptText()` uses `ScriptSyncResult.shotlistItemOrder` and `.sceneDividers` directly; no longer clears scene dividers on script edit
+
 
 
 - A new project can be created from the overview.
@@ -336,3 +366,18 @@ Lakai is a native macOS directing tool for creating, organizing, versioning, and
 - Storyboard and schedule can both be exported as PDFs.
 - Version counters increment on export.
 - Projects can be saved as folders and exchanged as ZIP files.
+- Cast members can be managed per drehtag and displayed on schedule shot cards.
+
+### Cast Management (Current Pass)
+- Each Drehtag divider (TAG 1 / Setup card + every additional TAG) carries a "Cast" button on the right side
+- Clicking opens a per-drehtag `castManagementPanel` popover scoped to that day's cast members
+- `CastMember` model: `id`, `name`, `colorHex`, `dayBlockID` (which drehtag it belongs to), `showInAllDays` (visibility flag)
+- `showInAllDays = true` makes a cast member's chip visible on shots from all drehtage, not just its own day
+- Color picker is an inline row of 6 colored circles; selected circle has a white ring + subtle scale-up — no dropdown
+- Default color auto-advances to the next in the palette each time a new member is added
+- Auto-match on `addShot()`: if a new shot's description contains a cast member's name, that member is auto-checked
+- Auto-match does NOT fire during script sync (`updateScriptText`) to avoid corrupting `autoMatchedCastIDs`
+- Cast chips in schedule shot cards are filtered by drehtag: only members whose `dayBlockID` matches the card's day (or `showInAllDays`) are shown
+- Chips are colored capsules; active = full color, inactive = 22% opacity with border; tap toggles assignment
+- Schedule PDF export includes a `Cast` column (72pt) between `Groesse` and `Beschreibung`
+- All cast data (`castMembers`, per-shot `castMemberIDs`, `autoMatchedCastIDs`) is XML-persisted
