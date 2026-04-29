@@ -132,6 +132,21 @@ enum ScheduleBlockKind: String, Codable, Hashable {
     case dayHeader
 }
 
+enum ShotlistItemKind: String, Codable, Hashable {
+    case shot
+    case sceneDivider
+}
+
+struct ShotlistItemRef: Codable, Hashable {
+    var kind: ShotlistItemKind
+    var id: UUID
+}
+
+struct SceneDivider: Identifiable, Codable, Hashable {
+    var id: UUID = UUID()
+    var title: String = ""
+}
+
 struct ProjectSummary: Identifiable, Hashable {
     let title: String
     let folderURL: URL
@@ -198,6 +213,8 @@ struct ProjectDocument: Identifiable, Codable {
     var scheduleVersion: Int = 1
     var shots: [Shot] = []
     var shotOrder: [UUID] = []
+    var sceneDividers: [SceneDivider] = []
+    var shotlistItemOrder: [ShotlistItemRef] = []
     var scheduleBlocks: [ScheduleBlock] = []
     var scriptText: String = ""
     var crewInfo: CrewInfo = CrewInfo()
@@ -241,42 +258,89 @@ struct ProjectDocument: Identifiable, Codable {
     }
 
     func displayShotNumber(for id: UUID) -> String {
-        guard let shot = shot(with: id), let index = shotOrder.firstIndex(of: id) else {
+        guard let shot = shot(with: id) else { return "?" }
+
+        // Find this shot's position in the mixed shotlist order
+        guard let shotRefIndex = shotlistItemOrder.firstIndex(where: { $0.kind == .shot && $0.id == id }) else {
             return "?"
         }
 
-        if shot.isOptional {
-            let optionalNumber = shotOrder.prefix(index + 1).filter { shotID in
-                shots.first(where: { $0.id == shotID })?.isOptional == true
-            }.count
-            return "OPT_\(optionalNumber)"
+        let hasDividers = shotlistItemOrder.contains(where: { $0.kind == .sceneDivider })
+
+        // Start of current scene: index after the last divider before this shot, or 0
+        let sceneStartIndex: Int
+        if let lastDividerIndex = shotlistItemOrder.prefix(shotRefIndex).lastIndex(where: { $0.kind == .sceneDivider }) {
+            sceneStartIndex = lastDividerIndex + 1
         } else {
-            let normalNumber = shotOrder.prefix(index + 1).filter { shotID in
-                shots.first(where: { $0.id == shotID })?.isOptional == false
+            sceneStartIndex = 0
+        }
+
+        let sceneRange = shotlistItemOrder[sceneStartIndex...shotRefIndex]
+
+        if shot.isOptional {
+            let optPos = sceneRange.filter { ref in
+                guard ref.kind == .shot else { return false }
+                return shots.first(where: { $0.id == ref.id })?.isOptional == true
             }.count
-            return String(normalNumber)
+            if hasDividers {
+                // Scene number = count of dividers strictly before this shot
+                let sceneNumber = shotlistItemOrder.prefix(shotRefIndex).filter { $0.kind == .sceneDivider }.count
+                return "\(sceneNumber)-OPT_\(optPos)"
+            } else {
+                return "OPT_\(optPos)"
+            }
+        } else {
+            let pos = sceneRange.filter { ref in
+                guard ref.kind == .shot else { return false }
+                return shots.first(where: { $0.id == ref.id })?.isOptional == false
+            }.count
+            if hasDividers {
+                let sceneNumber = shotlistItemOrder.prefix(shotRefIndex).filter { $0.kind == .sceneDivider }.count
+                return "\(sceneNumber)-\(pos)"
+            } else {
+                return String(pos)
+            }
         }
     }
 
+    func sceneDivider(with id: UUID) -> SceneDivider? {
+        sceneDividers.first(where: { $0.id == id })
+    }
+
+    // Returns the scene number (0-based count of preceding dividers) for a given shotlist item index.
+    func sceneNumber(atItemIndex index: Int) -> Int {
+        guard index >= 0 && index < shotlistItemOrder.count else { return 1 }
+        return shotlistItemOrder.prefix(index).filter { $0.kind == .sceneDivider }.count + 1
+    }
+
     mutating func syncOrders() {
-        let validIDs = Set(shots.map(\.id))
+        let validShotIDs = Set(shots.map(\.id))
+        let validDividerIDs = Set(sceneDividers.map(\.id))
 
-        shotOrder.removeAll(where: { !validIDs.contains($0) })
-
-        for shot in shots where !shotOrder.contains(shot.id) {
-            shotOrder.append(shot.id)
+        // Clean up shotlistItemOrder: remove refs for non-existent items.
+        shotlistItemOrder.removeAll { ref in
+            switch ref.kind {
+            case .shot: return !validShotIDs.contains(ref.id)
+            case .sceneDivider: return !validDividerIDs.contains(ref.id)
+            }
         }
 
+        // Add any shots not yet referenced in shotlistItemOrder.
+        // Respect shotOrder for relative ordering of new entries.
+        let existingOrderedShotIDs = Set(shotlistItemOrder.compactMap { $0.kind == .shot ? $0.id : nil })
+        let newShotIDs = shotOrder.filter { !existingOrderedShotIDs.contains($0) }
+        for id in newShotIDs {
+            shotlistItemOrder.append(ShotlistItemRef(kind: .shot, id: id))
+        }
+
+        // Derive shotOrder from shotlistItemOrder so schedule code stays consistent.
+        shotOrder = shotlistItemOrder.compactMap { $0.kind == .shot ? $0.id : nil }
+
+        // Schedule cleanup.
         scheduleBlocks.removeAll { block in
-            guard block.kind == .shot else {
-                return false
-            }
-
-            guard let shotID = block.shotID else {
-                return true
-            }
-
-            return !validIDs.contains(shotID)
+            guard block.kind == .shot else { return false }
+            guard let shotID = block.shotID else { return true }
+            return !validShotIDs.contains(shotID)
         }
 
         let scheduledShotIDs = Set(scheduleBlocks.compactMap(\.shotID))
@@ -297,6 +361,7 @@ struct ProjectDocument: Identifiable, Codable {
         let shot = Shot()
         shots.append(shot)
         shotOrder.append(shot.id)
+        shotlistItemOrder.append(ShotlistItemRef(kind: .shot, id: shot.id))
         scheduleBlocks.append(
             ScheduleBlock(
                 kind: .shot,
@@ -306,6 +371,29 @@ struct ProjectDocument: Identifiable, Codable {
                 scheduleNotes: ""
             )
         )
+    }
+
+    mutating func addSceneDivider() {
+        let divider = SceneDivider()
+        sceneDividers.append(divider)
+        let existingDividerCount = shotlistItemOrder.filter { $0.kind == .sceneDivider }.count
+        if existingDividerCount == 0 {
+            // First divider goes to the very top of the list.
+            shotlistItemOrder.insert(ShotlistItemRef(kind: .sceneDivider, id: divider.id), at: 0)
+        } else {
+            // Subsequent dividers are appended at the end.
+            shotlistItemOrder.append(ShotlistItemRef(kind: .sceneDivider, id: divider.id))
+        }
+    }
+
+    mutating func removeSceneDivider(id: UUID) {
+        sceneDividers.removeAll(where: { $0.id == id })
+        shotlistItemOrder.removeAll(where: { $0.kind == .sceneDivider && $0.id == id })
+    }
+
+    mutating func updateSceneDivider(id: UUID, title: String) {
+        guard let index = sceneDividers.firstIndex(where: { $0.id == id }) else { return }
+        sceneDividers[index].title = title
     }
 
     mutating func addPauseBlock() {
@@ -356,6 +444,7 @@ struct ProjectDocument: Identifiable, Codable {
     mutating func deleteShot(id: UUID) {
         shots.removeAll(where: { $0.id == id })
         shotOrder.removeAll(where: { $0 == id })
+        shotlistItemOrder.removeAll(where: { $0.kind == .shot && $0.id == id })
         scheduleBlocks.removeAll(where: { $0.shotID == id })
     }
 
@@ -376,14 +465,14 @@ struct ProjectDocument: Identifiable, Codable {
         case .script:
             return
         case .shotlist:
-            guard shotOrder.indices.contains(sourceIndex) else {
+            guard shotlistItemOrder.indices.contains(sourceIndex) else {
                 return
             }
 
-            let targetIndex = max(0, min(destinationIndex, shotOrder.count))
+            let targetIndex = max(0, min(destinationIndex, shotlistItemOrder.count))
             let insertionIndex = sourceIndex < targetIndex ? targetIndex - 1 : targetIndex
-            let item = shotOrder.remove(at: sourceIndex)
-            shotOrder.insert(item, at: max(0, min(insertionIndex, shotOrder.count)))
+            let item = shotlistItemOrder.remove(at: sourceIndex)
+            shotlistItemOrder.insert(item, at: max(0, min(insertionIndex, shotlistItemOrder.count)))
         case .schedule:
             guard scheduleBlocks.indices.contains(sourceIndex) else {
                 return

@@ -7,15 +7,39 @@ import ImageIO
 @MainActor
 struct PDFExportService {
     func exportStoryboard(project: ProjectDocument, destinationURL: URL, activeProjectURL: URL?, persistence: ProjectPersistenceService) throws -> URL {
-        let rows = project.orderedShots.map { shot in
-            StoryboardTableRow(
-                shotNumber: project.displayShotNumber(for: shot.id),
-                size: shot.size.title,
-                description: shot.descriptionText,
-                notes: shot.notes,
-                imageFileName: shot.imageFileName,
-                backgroundColor: shot.isOptional ? "F3F3F3" : shot.backgroundColor
-            )
+        var rows: [StoryboardTableRow] = []
+        var sceneCount = 0
+
+        for itemRef in project.shotlistItemOrder {
+            switch itemRef.kind {
+            case .sceneDivider:
+                if let divider = project.sceneDivider(with: itemRef.id) {
+                    sceneCount += 1
+                    let headerText = divider.title.isEmpty
+                        ? "Szene \(sceneCount)"
+                        : "Szene \(sceneCount) – \(divider.title)"
+                    rows.append(StoryboardTableRow(
+                        shotNumber: "",
+                        size: "",
+                        description: "",
+                        notes: "",
+                        imageFileName: nil,
+                        backgroundColor: nil,
+                        sceneHeaderTitle: headerText
+                    ))
+                }
+            case .shot:
+                if let shot = project.shot(with: itemRef.id) {
+                    rows.append(StoryboardTableRow(
+                        shotNumber: project.displayShotNumber(for: shot.id),
+                        size: shot.size.title,
+                        description: shot.descriptionText,
+                        notes: shot.notes,
+                        imageFileName: shot.imageFileName,
+                        backgroundColor: shot.isOptional ? "F3F3F3" : shot.backgroundColor
+                    ))
+                }
+            }
         }
 
         try generateStoryboardPDF(
@@ -135,6 +159,17 @@ struct PDFExportService {
         beginNewPage()
 
         for row in rows {
+            if let headerTitle = row.sceneHeaderTitle {
+                // Scene divider header band — slim full-width row.
+                let headerHeight: CGFloat = 22
+                if currentY - headerHeight < metrics.marginBottom {
+                    beginNewPage()
+                }
+                drawSceneHeaderBand(context: context, title: headerTitle, metrics: metrics, topY: currentY, height: headerHeight)
+                currentY -= headerHeight
+                continue
+            }
+
             let rowHeight = storyboardRowHeight(row: row, columns: columns, metrics: metrics)
             if currentY - rowHeight < metrics.marginBottom {
                 beginNewPage()
@@ -345,6 +380,27 @@ struct PDFExportService {
 
         let contentHeight = max(max(descriptionHeight, shotNotesHeight), max(scheduleNotesHeight, imageHeight))
         return max(metrics.minimumScheduleRowHeight, contentHeight + (metrics.cellVerticalPadding * 2))
+    }
+
+    private func drawSceneHeaderBand(context: CGContext, title: String, metrics: PDFPageMetrics, topY: CGFloat, height: CGFloat) {
+        let bandRect = CGRect(x: metrics.marginLeft, y: topY - height, width: metrics.tableWidth, height: height)
+        // Light gray fill
+        context.setFillColor(NSColor(white: 0.90, alpha: 1).cgColor)
+        context.fill(bandRect)
+        // Bottom border
+        context.setStrokeColor(NSColor(white: 0.72, alpha: 1).cgColor)
+        context.setLineWidth(0.5)
+        context.move(to: CGPoint(x: bandRect.minX, y: bandRect.minY))
+        context.addLine(to: CGPoint(x: bandRect.maxX, y: bandRect.minY))
+        context.strokePath()
+        // Text
+        let textRect = CGRect(
+            x: bandRect.minX + metrics.cellHorizontalPadding,
+            y: bandRect.minY + 4,
+            width: bandRect.width - (metrics.cellHorizontalPadding * 2),
+            height: bandRect.height - 6
+        )
+        drawWrappedText(title, in: textRect, context: context, font: metrics.boldFont, alignment: .left)
     }
 
     private func drawStoryboardRow(
@@ -722,6 +778,8 @@ private struct StoryboardTableRow {
     let notes: String
     let imageFileName: String?
     let backgroundColor: String?
+    /// When set, the row renders as a full-width scene header band instead of a data row.
+    var sceneHeaderTitle: String? = nil
 }
 
 private struct ScheduleTableRow {

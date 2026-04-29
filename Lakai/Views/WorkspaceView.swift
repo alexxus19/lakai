@@ -18,6 +18,14 @@ private struct ScheduleBlockFramePreferenceKey: PreferenceKey {
     }
 }
 
+private struct SceneDividerFramePreferenceKey: PreferenceKey {
+    static var defaultValue: [UUID: CGRect] = [:]
+
+    static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    }
+}
+
 struct WorkspaceView: View {
     @ObservedObject var appState: AppState
     private let scriptSync = ScriptSyncService()
@@ -45,6 +53,9 @@ struct WorkspaceView: View {
     @State private var isScheduleColorSectionExpanded = false
     @State private var scheduleBlockFrames: [UUID: CGRect] = [:]
     @State private var dayHeaderSetupDurationDrafts: [UUID: String] = [:]
+    @State private var activeDividerMenuID: UUID? = nil
+    @State private var activeDividerMenuPosition: CGPoint = .zero
+    @State private var sceneDividerFrames: [UUID: CGRect] = [:]
 
     private let dropGapHeight: CGFloat = 20
 
@@ -241,6 +252,13 @@ struct WorkspaceView: View {
 
                         Spacer()
 
+                        Button("Neue Szene") {
+                            appState.addSceneDivider()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .foregroundStyle(LakaiTheme.ink)
+
                         Button("Shot hinzufügen") {
                             appState.addShot()
                         }
@@ -251,76 +269,118 @@ struct WorkspaceView: View {
                     }
 
                     LazyVStack(spacing: 10) {
-                        ForEach(Array(project.orderedShots.enumerated()), id: \.element.id) { index, shot in
+                        ForEach(Array(project.shotlistItemOrder.enumerated()), id: \.element.id) { index, itemRef in
                             VStack(spacing: 0) {
-                                ShotCardView(
-                                    id: shot.id,
-                                    shotNumber: project.displayShotNumber(for: shot.id),
-                                    shot: shot,
-                                    imageURL: appState.imageURL(for: shot),
-                                    mode: .shotlist,
-                                    onDelete: { appState.deleteShot(shot.id) },
-                                    onImportImage: { appState.importShotImage(for: shot.id) },
-                                    onImportImageFromURL: { appState.importShotImage(for: shot.id, from: $0) },
-                                    onRemoveImage: { appState.clearShotImage(shot.id) },
-                                    onToggleOptional: { appState.toggleShotOptional(shot.id) },
-                                    onSetBackgroundColor: { appState.setShotBackgroundColor(shot.id, color: $0) },
-                                    onDuplicate: { appState.duplicateShot(shot.id) },
-                                    sizeBinding: Binding(
-                                        get: { appState.activeProject?.shot(with: shot.id)?.size ?? .ms },
-                                        set: { appState.updateShotSize(shot.id, size: $0) }
-                                    ),
-                                    descriptionBinding: Binding(
-                                        get: { appState.activeProject?.shot(with: shot.id)?.descriptionText ?? "" },
-                                        set: { appState.updateShotDescription(shot.id, text: $0) }
-                                    ),
-                                    notesBinding: Binding(
-                                        get: { appState.activeProject?.shot(with: shot.id)?.notes ?? "" },
-                                        set: { appState.updateShotNotes(shot.id, text: $0) }
-                                    ),
-                                    setupBinding: Binding(
-                                        get: { "" },
-                                        set: { _ in }
-                                    ),
-                                    durationBinding: Binding(
-                                        get: { "" },
-                                        set: { _ in }
-                                    ),
-                                    onContextMenuRequest: { cardID, point in
-                                        openShotCardMenu(for: cardID, localPoint: point)
-                                    }
-                                )
-                                .background(
-                                    GeometryReader { proxy in
-                                        Color.clear
-                                            .preference(
-                                                key: ShotCardFramePreferenceKey.self,
-                                                value: [shot.id: proxy.frame(in: .named("shotlistContextLayer"))]
-                                            )
-                                    }
-                                )
-                                .opacity(shot.isOptional ? 0.3 : 1.0)
-                                .scaleEffect(draggedShotID == shot.id ? 1.01 : 1)
-                                .overlay(reorderCardOverlay(isDragged: draggedShotID == shot.id))
-                                .zIndex(draggedShotID == shot.id ? 2 : 0)
-                                .onDrag {
-                                    draggedShotID = shot.id
-                                    return NSItemProvider(object: shot.id.uuidString as NSString)
-                                } preview: {
-                                    dragPreviewPlaceholder
-                                }
-                                .onDrop(
-                                    of: [UTType.text],
-                                    delegate: ReorderDropDelegate(
-                                        itemID: shot.id,
-                                        orderedIDsProvider: { appState.activeProject?.shotOrder ?? [] },
-                                        draggedID: $draggedShotID,
-                                        insertAfterTarget: true,
-                                        onMove: { from, to in
-                                            appState.moveItemLive(in: .shotlist, from: from, to: to)
+                                if itemRef.kind == .sceneDivider,
+                                   let divider = project.sceneDivider(with: itemRef.id) {
+                                    SceneDividerView(
+                                        divider: divider,
+                                        sceneNumber: project.sceneNumber(atItemIndex: index),
+                                        isDragged: draggedShotID == itemRef.id,
+                                        onDelete: { appState.removeSceneDivider(itemRef.id) },
+                                        onTitleChange: { appState.updateSceneDividerTitle(itemRef.id, title: $0) },
+                                        onContextMenuRequest: { point in openDividerMenu(for: itemRef.id, localPoint: point) }
+                                    )
+                                    .background(
+                                        GeometryReader { proxy in
+                                            Color.clear
+                                                .preference(
+                                                    key: SceneDividerFramePreferenceKey.self,
+                                                    value: [itemRef.id: proxy.frame(in: .named("shotlistContextLayer"))]
+                                                )
                                         }
                                     )
-                                )
+                                    .scaleEffect(draggedShotID == itemRef.id ? 1.01 : 1)
+                                    .zIndex(draggedShotID == itemRef.id ? 2 : 0)
+                                    .onDrag {
+                                        draggedShotID = itemRef.id
+                                        return NSItemProvider(object: itemRef.id.uuidString as NSString)
+                                    } preview: {
+                                        dragPreviewPlaceholder
+                                    }
+                                    .onDrop(
+                                        of: [UTType.text],
+                                        delegate: ReorderDropDelegate(
+                                            itemID: itemRef.id,
+                                            orderedIDsProvider: { appState.activeProject?.shotlistItemOrder.map(\.id) ?? [] },
+                                            draggedID: $draggedShotID,
+                                            insertAfterTarget: true,
+                                            onMove: { from, to in
+                                                appState.moveItemLive(in: .shotlist, from: from, to: to)
+                                            }
+                                        )
+                                    )
+                                } else if itemRef.kind == .shot,
+                                          let shot = project.shot(with: itemRef.id) {
+                                    ShotCardView(
+                                        id: shot.id,
+                                        shotNumber: project.displayShotNumber(for: shot.id),
+                                        shot: shot,
+                                        imageURL: appState.imageURL(for: shot),
+                                        mode: .shotlist,
+                                        onDelete: { appState.deleteShot(shot.id) },
+                                        onImportImage: { appState.importShotImage(for: shot.id) },
+                                        onImportImageFromURL: { appState.importShotImage(for: shot.id, from: $0) },
+                                        onRemoveImage: { appState.clearShotImage(shot.id) },
+                                        onToggleOptional: { appState.toggleShotOptional(shot.id) },
+                                        onSetBackgroundColor: { appState.setShotBackgroundColor(shot.id, color: $0) },
+                                        onDuplicate: { appState.duplicateShot(shot.id) },
+                                        sizeBinding: Binding(
+                                            get: { appState.activeProject?.shot(with: shot.id)?.size ?? .ms },
+                                            set: { appState.updateShotSize(shot.id, size: $0) }
+                                        ),
+                                        descriptionBinding: Binding(
+                                            get: { appState.activeProject?.shot(with: shot.id)?.descriptionText ?? "" },
+                                            set: { appState.updateShotDescription(shot.id, text: $0) }
+                                        ),
+                                        notesBinding: Binding(
+                                            get: { appState.activeProject?.shot(with: shot.id)?.notes ?? "" },
+                                            set: { appState.updateShotNotes(shot.id, text: $0) }
+                                        ),
+                                        setupBinding: Binding(
+                                            get: { "" },
+                                            set: { _ in }
+                                        ),
+                                        durationBinding: Binding(
+                                            get: { "" },
+                                            set: { _ in }
+                                        ),
+                                        onContextMenuRequest: { cardID, point in
+                                            openShotCardMenu(for: cardID, localPoint: point)
+                                        }
+                                    )
+                                    .background(
+                                        GeometryReader { proxy in
+                                            Color.clear
+                                                .preference(
+                                                    key: ShotCardFramePreferenceKey.self,
+                                                    value: [shot.id: proxy.frame(in: .named("shotlistContextLayer"))]
+                                                )
+                                        }
+                                    )
+                                    .opacity(shot.isOptional ? 0.3 : 1.0)
+                                    .scaleEffect(draggedShotID == shot.id ? 1.01 : 1)
+                                    .overlay(reorderCardOverlay(isDragged: draggedShotID == shot.id))
+                                    .zIndex(draggedShotID == shot.id ? 2 : 0)
+                                    .onDrag {
+                                        draggedShotID = shot.id
+                                        return NSItemProvider(object: shot.id.uuidString as NSString)
+                                    } preview: {
+                                        dragPreviewPlaceholder
+                                    }
+                                    .onDrop(
+                                        of: [UTType.text],
+                                        delegate: ReorderDropDelegate(
+                                            itemID: shot.id,
+                                            orderedIDsProvider: { appState.activeProject?.shotlistItemOrder.map(\.id) ?? [] },
+                                            draggedID: $draggedShotID,
+                                            insertAfterTarget: true,
+                                            onMove: { from, to in
+                                                appState.moveItemLive(in: .shotlist, from: from, to: to)
+                                            }
+                                        )
+                                    )
+                                }
                             }
                         }
                     }
@@ -339,19 +399,36 @@ struct WorkspaceView: View {
                     .offset(x: activeShotCardMenuPosition.x + 6, y: activeShotCardMenuPosition.y + 6)
                     .zIndex(100)
             }
+
+            if activeDividerMenuID != nil {
+                Color.clear
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
+                    .onTapGesture { closeDividerMenu() }
+                    .zIndex(99)
+
+                globalDividerMenu()
+                    .offset(x: activeDividerMenuPosition.x + 6, y: activeDividerMenuPosition.y + 6)
+                    .zIndex(100)
+            }
         }
         .coordinateSpace(name: "shotlistContextLayer")
         .onPreferenceChange(ShotCardFramePreferenceKey.self) { frames in
             shotCardFrames = frames
         }
+        .onPreferenceChange(SceneDividerFramePreferenceKey.self) { frames in
+            sceneDividerFrames = frames
+        }
         .onDrop(of: [UTType.text], isTargeted: nil) { _ in
             resetDragState()
             closeShotCardMenu()
+            closeDividerMenu()
             return true
         }
         .contentShape(Rectangle())
         .onTapGesture {
             closeShotCardMenu()
+            closeDividerMenu()
             dismissActiveInput()
         }
     }
@@ -368,6 +445,35 @@ struct WorkspaceView: View {
         activeShotCardMenuPosition = CGPoint(x: frame.minX + localPoint.x, y: frame.minY + localPoint.y)
         activeShotCardMenuID = cardID
         isShotColorSectionExpanded = false
+    }
+
+    private func openDividerMenu(for dividerID: UUID, localPoint: CGPoint) {
+        guard let frame = sceneDividerFrames[dividerID] else {
+            return
+        }
+        activeDividerMenuPosition = CGPoint(x: frame.minX + localPoint.x, y: frame.minY + localPoint.y)
+        activeDividerMenuID = dividerID
+        closeShotCardMenu()
+    }
+
+    private func closeDividerMenu() {
+        activeDividerMenuID = nil
+    }
+
+    @ViewBuilder
+    private func globalDividerMenu() -> some View {
+        if let dividerID = activeDividerMenuID {
+            globalMenuButton(title: "Szene löschen", systemImage: "trash", tint: Color(red: 0.95, green: 0.55, blue: 0.55)) {
+                appState.removeSceneDivider(dividerID)
+                closeDividerMenu()
+            }
+            .frame(width: 210)
+            .padding(8)
+            .background(LakaiTheme.panelElevated.opacity(0.98))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(LakaiTheme.panelBorder, lineWidth: 1))
+            .shadow(color: Color.black.opacity(0.25), radius: 16, x: 0, y: 8)
+        }
     }
 
     private func closeShotCardMenu() {
@@ -810,7 +916,7 @@ struct WorkspaceView: View {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
-                        Text("#\(entry.shotNumber ?? 0)")
+                        Text("#\((appState.activeProject?.displayShotNumber(for: shot.id)) ?? "\(entry.shotNumber ?? 0)")")
                             .font(.system(size: 11, weight: .bold))
                             .foregroundStyle(LakaiTheme.ink)
 

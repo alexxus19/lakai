@@ -82,12 +82,32 @@ final class AppState: ObservableObject {
             project.shots = syncResult.shots
             project.shotOrder = syncResult.shotOrder
             project.scheduleBlocks = syncResult.scheduleBlocks
+            project.shotlistItemOrder = syncResult.shotlistItemOrder
+            project.sceneDividers = syncResult.sceneDividers
         }
     }
 
     func addShot() {
         mutateProject(animated: true) { project in
             project.addShot()
+        }
+    }
+
+    func addSceneDivider() {
+        mutateProject(animated: true) { project in
+            project.addSceneDivider()
+        }
+    }
+
+    func removeSceneDivider(_ id: UUID) {
+        mutateProject(animated: true) { project in
+            project.removeSceneDivider(id: id)
+        }
+    }
+
+    func updateSceneDividerTitle(_ id: UUID, title: String) {
+        mutateProject(syncScriptFromShots: false) { project in
+            project.updateSceneDivider(id: id, title: title)
         }
     }
 
@@ -506,7 +526,7 @@ final class AppState: ObservableObject {
     func duplicateShot(_ id: UUID) {
         mutateProject(animated: true) { project in
             guard let sourceShot = project.shot(with: id),
-                  let sourceIndex = project.shotOrder.firstIndex(of: id) else {
+                  let sourceItemIndex = project.shotlistItemOrder.firstIndex(where: { $0.kind == .shot && $0.id == id }) else {
                 return
             }
 
@@ -514,7 +534,7 @@ final class AppState: ObservableObject {
             newShot.id = UUID()
 
             project.shots.append(newShot)
-            project.shotOrder.insert(newShot.id, at: sourceIndex + 1)
+            project.shotlistItemOrder.insert(ShotlistItemRef(kind: .shot, id: newShot.id), at: sourceItemIndex + 1)
 
             let newBlock = ScheduleBlock(
                 kind: .shot,

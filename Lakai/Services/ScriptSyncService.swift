@@ -6,22 +6,44 @@ struct ScriptSyncResult {
     let shots: [Shot]
     let shotOrder: [UUID]
     let scheduleBlocks: [ScheduleBlock]
+    let sceneDividers: [SceneDivider]
+    let shotlistItemOrder: [ShotlistItemRef]
 }
 
 struct ScriptSyncService {
     func parseScript(_ scriptText: String, preserving existingProject: ProjectDocument) -> ScriptSyncResult {
         let lines = scriptText.components(separatedBy: .newlines)
-        var parsedEntries: [(description: String, notes: String, size: ShotSize)] = []
+
+        // A parsed item is either a shot entry or a scene header.
+        enum ParsedItem {
+            case shot(description: String, notes: String)
+            case scene(title: String)
+        }
+
+        var parsedItems: [ParsedItem] = []
         var currentDescription: String?
         var currentNotes: [String] = []
-        var hasStartedShots = false
+        var hasStartedContent = false
 
         for line in lines {
-            if let descriptionLine = shotDescriptionLine(from: line) {
-                hasStartedShots = true
+            // Detect Markdown heading lines (## or ###) as scene dividers.
+            if let sceneTitle = sceneHeaderTitle(from: line) {
+                // Flush any open shot.
+                if let desc = currentDescription {
+                    parsedItems.append(.shot(description: desc, notes: collapseNotes(currentNotes)))
+                    currentDescription = nil
+                    currentNotes = []
+                }
+                parsedItems.append(.scene(title: sceneTitle))
+                hasStartedContent = true
+                continue
+            }
 
-                if let currentDescription {
-                    parsedEntries.append((currentDescription, collapseNotes(currentNotes), detectShotSize(in: currentDescription).size))
+            if let descriptionLine = shotDescriptionLine(from: line) {
+                hasStartedContent = true
+
+                if let desc = currentDescription {
+                    parsedItems.append(.shot(description: desc, notes: collapseNotes(currentNotes)))
                 }
 
                 currentDescription = descriptionLine
@@ -29,43 +51,58 @@ struct ScriptSyncService {
                 continue
             }
 
-            guard hasStartedShots, currentDescription != nil else {
+            guard hasStartedContent, currentDescription != nil else {
                 continue
             }
 
             currentNotes.append(line)
         }
 
-        if let currentDescription {
-            parsedEntries.append((currentDescription, collapseNotes(currentNotes), detectShotSize(in: currentDescription).size))
+        if let desc = currentDescription {
+            parsedItems.append(.shot(description: desc, notes: collapseNotes(currentNotes)))
         }
 
         let existingShotsByIndex = Array(existingProject.orderedShots.enumerated())
         var shots: [Shot] = []
         var shotOrder: [UUID] = []
         var scheduleBlocks: [ScheduleBlock] = []
+        var sceneDividers: [SceneDivider] = []
+        var shotlistItemOrder: [ShotlistItemRef] = []
+        var shotIndexCounter = 0
 
-        for (index, entry) in parsedEntries.enumerated() {
-            let sizeMatch = detectShotSize(in: entry.description)
-            var shot = existingShotsByIndex.indices.contains(index) ? existingShotsByIndex[index].element : Shot()
-            shot.size = sizeMatch.size
-            shot.descriptionText = sizeMatch.cleanedDescription
-            shot.notes = entry.notes
-            shots.append(shot)
-            shotOrder.append(shot.id)
+        for item in parsedItems {
+            switch item {
+            case .scene(let title):
+                let divider = SceneDivider(title: title)
+                sceneDividers.append(divider)
+                shotlistItemOrder.append(ShotlistItemRef(kind: .sceneDivider, id: divider.id))
 
-            let existingBlock = existingProject.orderedScheduleBlocks.first(where: { $0.shotID == shot.id && $0.kind == .shot })
-            scheduleBlocks.append(
-                ScheduleBlock(
-                    id: existingBlock?.id ?? UUID(),
-                    kind: .shot,
-                    shotID: shot.id,
-                    title: "",
-                    durationSeconds: 0,
-                    scheduleNotes: existingBlock?.scheduleNotes ?? "",
-                    backgroundColor: existingBlock?.backgroundColor
+            case .shot(let description, let notes):
+                let sizeMatch = detectShotSize(in: description)
+                var shot = existingShotsByIndex.indices.contains(shotIndexCounter)
+                    ? existingShotsByIndex[shotIndexCounter].element
+                    : Shot()
+                shot.size = sizeMatch.size
+                shot.descriptionText = sizeMatch.cleanedDescription
+                shot.notes = notes
+                shots.append(shot)
+                shotOrder.append(shot.id)
+                shotlistItemOrder.append(ShotlistItemRef(kind: .shot, id: shot.id))
+                shotIndexCounter += 1
+
+                let existingBlock = existingProject.orderedScheduleBlocks.first(where: { $0.shotID == shot.id && $0.kind == .shot })
+                scheduleBlocks.append(
+                    ScheduleBlock(
+                        id: existingBlock?.id ?? UUID(),
+                        kind: .shot,
+                        shotID: shot.id,
+                        title: "",
+                        durationSeconds: 0,
+                        scheduleNotes: existingBlock?.scheduleNotes ?? "",
+                        backgroundColor: existingBlock?.backgroundColor
+                    )
                 )
-            )
+            }
         }
 
         let pauseBlocks = existingProject.orderedScheduleBlocks.filter { $0.kind == .pause }
@@ -75,23 +112,54 @@ struct ScriptSyncService {
             scriptText: scriptText,
             shots: shots,
             shotOrder: shotOrder,
-            scheduleBlocks: scheduleBlocks
+            scheduleBlocks: scheduleBlocks,
+            sceneDividers: sceneDividers,
+            shotlistItemOrder: shotlistItemOrder
         )
     }
 
     func composeScript(from project: ProjectDocument) -> String {
-        project.orderedShots.map { shot in
-            let description = shot.descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
-            let headline = description.isEmpty ? shot.size.scriptKeyword : "\(shot.size.scriptKeyword) \(description)"
-            let notes = shot.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        var lines: [String] = []
 
-            if notes.isEmpty {
-                return "• \(headline)"
+        for itemRef in project.shotlistItemOrder {
+            switch itemRef.kind {
+            case .sceneDivider:
+                if let divider = project.sceneDivider(with: itemRef.id) {
+                    if !lines.isEmpty { lines.append("") }
+                    lines.append("### \(divider.title)")
+                    lines.append("")
+                }
+            case .shot:
+                if let shot = project.shot(with: itemRef.id) {
+                    let description = shot.descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let headline = description.isEmpty ? shot.size.scriptKeyword : "\(shot.size.scriptKeyword) \(description)"
+                    let notes = shot.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if notes.isEmpty {
+                        lines.append("• \(headline)")
+                    } else {
+                        lines.append("• \(headline)")
+                        lines.append(notes)
+                    }
+                    lines.append("")
+                }
             }
-
-            return "• \(headline)\n\(notes)"
         }
-        .joined(separator: "\n\n")
+
+        // Remove trailing empty lines.
+        while lines.last?.isEmpty == true { lines.removeLast() }
+        return lines.joined(separator: "\n")
+    }
+
+    private func sceneHeaderTitle(from line: String) -> String? {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        // Match ### or ## at the start (Markdown headings level 2 or 3).
+        for prefix in ["###", "##"] {
+            if trimmed.hasPrefix(prefix) {
+                let rest = trimmed.dropFirst(prefix.count).trimmingCharacters(in: .whitespaces)
+                return rest.isEmpty ? nil : rest
+            }
+        }
+        return nil
     }
 
     func attributedScript(_ text: String) -> NSAttributedString {
@@ -103,7 +171,9 @@ struct ScriptSyncService {
         for line in lines {
             let range = NSRange(location: location, length: line.count)
 
-            if let descriptionLine = shotDescriptionLine(from: line) {
+            if sceneHeaderTitle(from: line) != nil {
+                attributed.addAttributes(sceneHeaderAttributes, range: range)
+            } else if let descriptionLine = shotDescriptionLine(from: line) {
                 let matched = detectShotSize(in: descriptionLine)
                 let keyword = matched.keyword
                 if !keyword.isEmpty, let keywordRange = line.range(of: keyword, options: [.caseInsensitive]) {
@@ -124,6 +194,9 @@ struct ScriptSyncService {
         guard !trimmed.isEmpty else {
             return nil
         }
+
+        // Scene header lines (## / ###) must not be treated as shot lines.
+        if trimmed.hasPrefix("##") { return nil }
 
         if let checklistLine = stripChecklistPrefix(from: trimmed) {
             let normalized = normalizeImportedDescription(checklistLine)
@@ -232,6 +305,13 @@ struct ScriptSyncService {
         [
             .font: NSFontManager.shared.convert(NSFont.monospacedSystemFont(ofSize: 13, weight: .regular), toHaveTrait: .italicFontMask),
             .foregroundColor: NSColor.white.withAlphaComponent(0.72)
+        ]
+    }
+
+    private var sceneHeaderAttributes: [NSAttributedString.Key: Any] {
+        [
+            .font: NSFont.monospacedSystemFont(ofSize: 14, weight: .bold),
+            .foregroundColor: NSColor.white.withAlphaComponent(0.55)
         ]
     }
 }

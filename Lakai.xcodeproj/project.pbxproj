@@ -17,6 +17,7 @@
 		100000000000000000000208 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000108 /* AppState.swift */; };
 		10000000000000000000020E /* ScriptSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000010E /* ScriptSyncService.swift */; };
 		100000000000000000000209 /* ShotCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000109 /* ShotCardView.swift */; };
+		100000000000000000000210 /* SceneDividerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000110 /* SceneDividerView.swift */; };
 		10000000000000000000020F /* ScriptTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000010F /* ScriptTextEditor.swift */; };
 		10000000000000000000020A /* OverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000010A /* OverviewView.swift */; };
 		10000000000000000000020B /* WorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000010B /* WorkspaceView.swift */; };
@@ -35,6 +36,7 @@
 		100000000000000000000107 /* PDFExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFExportService.swift; sourceTree = "<group>"; };
 		100000000000000000000108 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		100000000000000000000109 /* ShotCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShotCardView.swift; sourceTree = "<group>"; };
+		100000000000000000000110 /* SceneDividerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDividerView.swift; sourceTree = "<group>"; };
 		10000000000000000000010A /* OverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewView.swift; sourceTree = "<group>"; };
 		10000000000000000000010B /* WorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceView.swift; sourceTree = "<group>"; };
 		10000000000000000000010C /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -122,6 +124,7 @@
 			children = (
 				10000000000000000000010F /* ScriptTextEditor.swift */,
 				100000000000000000000109 /* ShotCardView.swift */,
+				100000000000000000000110 /* SceneDividerView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -212,6 +215,7 @@
 				100000000000000000000208 /* AppState.swift in Sources */,
 				10000000000000000000020E /* ScriptSyncService.swift in Sources */,
 				100000000000000000000209 /* ShotCardView.swift in Sources */,
+				100000000000000000000210 /* SceneDividerView.swift in Sources */,
 				10000000000000000000020F /* ScriptTextEditor.swift in Sources */,
 				10000000000000000000020A /* OverviewView.swift in Sources */,
 				10000000000000000000020B /* WorkspaceView.swift in Sources */,

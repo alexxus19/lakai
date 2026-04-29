@@ -118,6 +118,29 @@ struct ProjectPersistenceService {
             UUID(uuidString: $0.stringValue ?? "")
         } ?? []
 
+        // Load scene dividers.
+        if let dividersElement = root.firstElement(named: "sceneDividers") {
+            project.sceneDividers = dividersElement.elements(forName: "divider").compactMap { el in
+                guard let idStr = el.attribute(forName: "id")?.stringValue,
+                      let id = UUID(uuidString: idStr) else { return nil }
+                return SceneDivider(id: id, title: el.childText(for: "title") ?? "")
+            }
+        }
+
+        // Load mixed shotlist item order, or migrate from legacy shotOrder.
+        if let itemOrderElement = root.firstElement(named: "shotlistItemOrder") {
+            project.shotlistItemOrder = itemOrderElement.elements(forName: "item").compactMap { el in
+                guard let kindStr = el.attribute(forName: "kind")?.stringValue,
+                      let kind = ShotlistItemKind(rawValue: kindStr),
+                      let idStr = el.attribute(forName: "id")?.stringValue,
+                      let id = UUID(uuidString: idStr) else { return nil }
+                return ShotlistItemRef(kind: kind, id: id)
+            }
+        } else {
+            // Migration: build shotlistItemOrder from legacy shotOrder (shots only, no dividers).
+            project.shotlistItemOrder = project.shotOrder.map { ShotlistItemRef(kind: .shot, id: $0) }
+        }
+
         if let scheduleBlocksElement = root.firstElement(named: "scheduleBlocks") {
             project.scheduleBlocks = scheduleBlocksElement.elements(forName: "block").map { blockElement in
                 ScheduleBlock(
@@ -216,6 +239,30 @@ struct ProjectPersistenceService {
         let shotOrder = XMLElement(name: "shotOrder")
         project.shotOrder.forEach { shotOrder.addChild(XMLElement(name: "shotID", stringValue: $0.uuidString)) }
         root.addChild(shotOrder)
+
+        let sceneDividers = XMLElement(name: "sceneDividers")
+        for divider in project.sceneDividers {
+            let el = XMLElement(name: "divider")
+            if let attr = XMLNode.attribute(withName: "id", stringValue: divider.id.uuidString) as? XMLNode {
+                el.addAttribute(attr)
+            }
+            el.addChild(XMLElement(name: "title", stringValue: divider.title))
+            sceneDividers.addChild(el)
+        }
+        root.addChild(sceneDividers)
+
+        let shotlistItemOrder = XMLElement(name: "shotlistItemOrder")
+        for ref in project.shotlistItemOrder {
+            let el = XMLElement(name: "item")
+            if let kindAttr = XMLNode.attribute(withName: "kind", stringValue: ref.kind.rawValue) as? XMLNode {
+                el.addAttribute(kindAttr)
+            }
+            if let idAttr = XMLNode.attribute(withName: "id", stringValue: ref.id.uuidString) as? XMLNode {
+                el.addAttribute(idAttr)
+            }
+            shotlistItemOrder.addChild(el)
+        }
+        root.addChild(shotlistItemOrder)
 
         let scheduleBlocks = XMLElement(name: "scheduleBlocks")
         for block in project.scheduleBlocks {
