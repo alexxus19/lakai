@@ -28,6 +28,8 @@ private struct SceneDividerFramePreferenceKey: PreferenceKey {
 
 struct WorkspaceView: View {
     @ObservedObject var appState: AppState
+    @EnvironmentObject var themeManager: ThemeManager
+    private var theme: ThemeDefinition { themeManager.current }
     private let scriptSync = ScriptSyncService()
     @State private var draggedShotID: UUID?
     @State private var draggedScheduleBlockID: UUID?
@@ -66,7 +68,7 @@ struct WorkspaceView: View {
     var body: some View {
         if let project = appState.activeProject {
             ZStack {
-                LinearGradient(colors: [LakaiTheme.canvas, LakaiTheme.canvasAlt], startPoint: .topLeading, endPoint: .bottomTrailing)
+                LinearGradient(colors: [theme.canvas, theme.canvasAlt], startPoint: .topLeading, endPoint: .bottomTrailing)
                     .ignoresSafeArea()
 
                 VStack(spacing: 14) {
@@ -109,7 +111,7 @@ struct WorkspaceView: View {
                             Text("Übersicht")
                                 .font(.system(size: 10, weight: .semibold))
                         }
-                        .foregroundStyle(LakaiTheme.mutedInk)
+                        .foregroundStyle(theme.mutedInk)
                     }
                     .buttonStyle(.plain)
 
@@ -119,7 +121,7 @@ struct WorkspaceView: View {
                     ))
                     .font(.system(size: 26, weight: .bold))
                     .textFieldStyle(.plain)
-                    .foregroundStyle(LakaiTheme.ink)
+                    .foregroundStyle(theme.ink)
                 }
 
                 HStack(spacing: 8) {
@@ -136,7 +138,7 @@ struct WorkspaceView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .foregroundStyle(LakaiTheme.ink)
+                .foregroundStyle(theme.ink)
 
                 Button(appState.currentMode == .schedule ? "Drehplan PDF" : "Storyboard PDF") {
                     if appState.currentMode == .schedule {
@@ -147,8 +149,8 @@ struct WorkspaceView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
-                .tint(LakaiTheme.accent)
-                .foregroundStyle(LakaiTheme.ink)
+                .tint(theme.accent)
+                .foregroundStyle(theme.ink)
             }
 
             HStack(alignment: .center, spacing: 10) {
@@ -165,9 +167,9 @@ struct WorkspaceView: View {
             }
         }
         .padding(16)
-        .background(LakaiTheme.panelElevated.opacity(0.96))
+        .background(theme.panelElevated.opacity(0.96))
         .clipShape(RoundedRectangle(cornerRadius: 18))
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(LakaiTheme.panelBorder, lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(theme.panelBorder, lineWidth: 1))
         .shadow(color: Color.black.opacity(0.25), radius: 12, x: 0, y: 6)
     }
 
@@ -177,17 +179,17 @@ struct WorkspaceView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Skript")
                         .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(LakaiTheme.ink)
+                        .foregroundStyle(theme.ink)
                     Text("Zeilen vor dem ersten Marker werden ignoriert. Neue Shots beginnen mit •, #, -, * oder [ ].")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(LakaiTheme.mutedInk)
+                        .foregroundStyle(theme.mutedInk)
                 }
 
                 Spacer()
 
                 Text("Erkannte Shotgrößen am Zeilenanfang werden kursiv markiert und in die Shotlist übernommen.")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(LakaiTheme.mutedInk)
+                    .foregroundStyle(theme.mutedInk)
                     .frame(maxWidth: 340, alignment: .trailing)
                     .multilineTextAlignment(.trailing)
             }
@@ -197,13 +199,14 @@ struct WorkspaceView: View {
                     get: { appState.activeProject?.scriptText ?? "" },
                     set: { appState.updateScriptText($0) }
                 ),
-                scriptSync: scriptSync
+                scriptSync: scriptSync,
+                theme: theme
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(16)
-            .background(LakaiTheme.panel.opacity(0.96))
+            .background(theme.panel.opacity(0.96))
             .clipShape(RoundedRectangle(cornerRadius: 22))
-            .overlay(RoundedRectangle(cornerRadius: 22).stroke(LakaiTheme.panelBorder, lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: 22).stroke(theme.panelBorder, lineWidth: 1))
 
             HStack(spacing: 10) {
                 metaPill(title: "Shots", value: String(project.shots.count))
@@ -226,12 +229,12 @@ struct WorkspaceView: View {
                     ZStack {
                         if appState.currentMode == mode {
                             RoundedRectangle(cornerRadius: 14)
-                                .fill(LakaiTheme.accentStrong)
+                                .fill(theme.accentStrong)
                         }
 
                         Text(mode.title)
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(appState.currentMode == mode ? LakaiTheme.ink : LakaiTheme.mutedInk)
+                            .foregroundStyle(appState.currentMode == mode ? theme.ink : theme.mutedInk)
                     }
                     .frame(maxWidth: .infinity, minHeight: 34, maxHeight: 34)
                     .contentShape(Rectangle())
@@ -241,7 +244,7 @@ struct WorkspaceView: View {
         }
         .frame(width: 306)
         .padding(3)
-        .background(LakaiTheme.accentSoft)
+        .background(theme.accentSoft)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
@@ -252,7 +255,7 @@ struct WorkspaceView: View {
                     HStack {
                         Text("Shotlist")
                             .font(.system(size: 22, weight: .bold))
-                            .foregroundStyle(LakaiTheme.ink)
+                            .foregroundStyle(theme.ink)
 
                         Spacer()
 
@@ -261,15 +264,15 @@ struct WorkspaceView: View {
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
-                        .foregroundStyle(LakaiTheme.ink)
+                        .foregroundStyle(theme.ink)
 
                         Button("Shot hinzufügen") {
                             appState.addShot()
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.small)
-                        .tint(LakaiTheme.accent)
-                        .foregroundStyle(LakaiTheme.ink)
+                        .tint(theme.accent)
+                        .foregroundStyle(theme.ink)
                     }
 
                     LazyVStack(spacing: 10) {
@@ -473,9 +476,9 @@ struct WorkspaceView: View {
             }
             .frame(width: 210)
             .padding(8)
-            .background(LakaiTheme.panelElevated.opacity(0.98))
+            .background(theme.panelElevated.opacity(0.98))
             .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(LakaiTheme.panelBorder, lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(theme.panelBorder, lineWidth: 1))
             .shadow(color: Color.black.opacity(0.25), radius: 16, x: 0, y: 8)
         }
     }
@@ -529,12 +532,12 @@ struct WorkspaceView: View {
                                     .frame(width: 10, height: 10)
                                 Text(colorToneName(for: item.hex))
                                     .font(.system(size: 11, weight: .medium))
-                                    .foregroundStyle(LakaiTheme.ink)
+                                    .foregroundStyle(theme.ink)
                             }
                             .padding(.horizontal, 8)
                             .padding(.vertical, 5)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(LakaiTheme.panel.opacity(0.9))
+                            .background(theme.panel.opacity(0.9))
                             .clipShape(RoundedRectangle(cornerRadius: 8))
                         }
                         .buttonStyle(.plain)
@@ -546,11 +549,11 @@ struct WorkspaceView: View {
                     } label: {
                         Label("Farbton entfernen", systemImage: "xmark.circle")
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(LakaiTheme.ink)
+                            .foregroundStyle(theme.ink)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 5)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(LakaiTheme.panel.opacity(0.9))
+                            .background(theme.panel.opacity(0.9))
                             .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
                     .buttonStyle(.plain)
@@ -561,9 +564,9 @@ struct WorkspaceView: View {
         }
         .padding(8)
         .frame(width: 210)
-        .background(LakaiTheme.panelElevated.opacity(0.98))
+        .background(theme.panelElevated.opacity(0.98))
         .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(LakaiTheme.panelBorder, lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(theme.panelBorder, lineWidth: 1))
         .shadow(color: Color.black.opacity(0.25), radius: 16, x: 0, y: 8)
     }
 
@@ -606,12 +609,12 @@ struct WorkspaceView: View {
                                     .frame(width: 10, height: 10)
                                 Text(colorToneName(for: item.hex))
                                     .font(.system(size: 11, weight: .medium))
-                                    .foregroundStyle(LakaiTheme.ink)
+                                    .foregroundStyle(theme.ink)
                             }
                             .padding(.horizontal, 8)
                             .padding(.vertical, 5)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(LakaiTheme.panel.opacity(0.9))
+                            .background(theme.panel.opacity(0.9))
                             .clipShape(RoundedRectangle(cornerRadius: 8))
                         }
                         .buttonStyle(.plain)
@@ -623,11 +626,11 @@ struct WorkspaceView: View {
                     } label: {
                         Label("Farbton entfernen", systemImage: "xmark.circle")
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(LakaiTheme.ink)
+                            .foregroundStyle(theme.ink)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 5)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(LakaiTheme.panel.opacity(0.9))
+                            .background(theme.panel.opacity(0.9))
                             .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
                     .buttonStyle(.plain)
@@ -637,7 +640,7 @@ struct WorkspaceView: View {
             }
 
             Divider()
-                .overlay(LakaiTheme.panelBorder)
+                .overlay(theme.panelBorder)
 
             globalMenuButton(title: "Duplizieren", systemImage: "square.on.square") {
                 appState.duplicateShot(shot.id)
@@ -651,21 +654,22 @@ struct WorkspaceView: View {
         }
         .padding(8)
         .frame(width: 210)
-        .background(LakaiTheme.panelElevated.opacity(0.98))
+        .background(theme.panelElevated.opacity(0.98))
         .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(LakaiTheme.panelBorder, lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(theme.panelBorder, lineWidth: 1))
         .shadow(color: Color.black.opacity(0.25), radius: 16, x: 0, y: 8)
     }
 
-    private func globalMenuButton(title: String, systemImage: String, tint: Color = LakaiTheme.ink, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+    private func globalMenuButton(title: String, systemImage: String, tint: Color? = nil, action: @escaping () -> Void) -> some View {
+        let labelColor = tint ?? theme.ink
+        return Button(action: action) {
             Label(title, systemImage: systemImage)
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(tint)
+                .foregroundStyle(labelColor)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(LakaiTheme.panel.opacity(0.72))
+                .background(theme.panel.opacity(0.72))
                 .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
@@ -724,7 +728,7 @@ struct WorkspaceView: View {
                 HStack {
                     Text("Drehplan")
                         .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(LakaiTheme.ink)
+                        .foregroundStyle(theme.ink)
 
                     Spacer()
 
@@ -733,16 +737,16 @@ struct WorkspaceView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
-                    .tint(LakaiTheme.accent)
-                    .foregroundStyle(LakaiTheme.ink)
+                    .tint(theme.accent)
+                    .foregroundStyle(theme.ink)
 
                     Button("Drehtag hinzufügen") {
                         appState.addDayBlock()
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
-                    .tint(LakaiTheme.accent)
-                    .foregroundStyle(LakaiTheme.ink)
+                    .tint(theme.accent)
+                    .foregroundStyle(theme.ink)
                 }
 
                 setupCard(for: project)
@@ -833,10 +837,10 @@ struct WorkspaceView: View {
         HStack(spacing: 12) {
             Text("TAG 1")
                 .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(LakaiTheme.ink)
+                .foregroundStyle(theme.ink)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(LakaiTheme.accentStrong)
+                .background(theme.accentStrong)
                 .clipShape(Capsule())
 
             compactDateButton(
@@ -885,7 +889,7 @@ struct WorkspaceView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Setup Dauer")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(LakaiTheme.mutedInk)
+                    .foregroundStyle(theme.mutedInk)
 
                 TextField("0:15", text: Binding(
                     get: {
@@ -902,9 +906,9 @@ struct WorkspaceView: View {
                 .textFieldStyle(.plain)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
-                .background(LakaiTheme.accentSoft)
+                .background(theme.accentSoft)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
-                .foregroundStyle(LakaiTheme.ink)
+                .foregroundStyle(theme.ink)
                 .font(.system(size: 12, weight: .medium))
                 .frame(width: 80)
             }
@@ -916,16 +920,16 @@ struct WorkspaceView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
-            .tint(LakaiTheme.accentStrong)
-            .foregroundStyle(LakaiTheme.ink)
+            .tint(theme.accentStrong)
+            .foregroundStyle(theme.ink)
             .popover(isPresented: $isSetupCastPanelOpen, arrowEdge: .bottom) {
                 castManagementPanel(dayBlockID: nil, project: project)
             }
         }
         .padding(12)
-        .background(LakaiTheme.panel.opacity(0.96))
+        .background(theme.panel.opacity(0.96))
         .clipShape(RoundedRectangle(cornerRadius: 18))
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(LakaiTheme.panelBorder, lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(theme.panelBorder, lineWidth: 1))
     }
 
     private func scheduleShotCard(for block: ScheduleBlock, shot: Shot, entry: CalculatedScheduleEntry, isLastBlock: Bool, isFirstShot: Bool = false, dayBlockID: UUID? = nil) -> some View {
@@ -942,13 +946,13 @@ struct WorkspaceView: View {
                     HStack(spacing: 8) {
                         Text("#\((appState.activeProject?.displayShotNumber(for: shot.id)) ?? "\(entry.shotNumber ?? 0)")")
                             .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(LakaiTheme.ink)
+                            .foregroundStyle(theme.ink)
 
                         Text(shot.size.title)
                             .font(.system(size: 10, weight: .semibold))
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(LakaiTheme.accentSoft)
+                            .background(theme.accentSoft)
                             .clipShape(Capsule())
 
                         Spacer(minLength: 0)
@@ -956,7 +960,7 @@ struct WorkspaceView: View {
                         if isLastBlock {
                             Text("Wrap")
                                 .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(LakaiTheme.mutedInk)
+                                .foregroundStyle(theme.mutedInk)
                         }
                     }
 
@@ -969,14 +973,14 @@ struct WorkspaceView: View {
 
                     Text(shot.descriptionText.isEmpty ? "Keine Beschreibung" : shot.descriptionText)
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(LakaiTheme.ink)
+                        .foregroundStyle(theme.ink)
                         .lineLimit(3)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                     if !shot.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         Text(shot.notes)
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(LakaiTheme.mutedInk)
+                            .foregroundStyle(theme.mutedInk)
                             .lineLimit(2)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -1003,7 +1007,7 @@ struct WorkspaceView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Notizen")
                                 .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(LakaiTheme.mutedInk)
+                                .foregroundStyle(theme.mutedInk)
 
                             TextField("Notizen", text: Binding(
                                 get: { appState.activeProject?.scheduleBlock(with: block.id)?.scheduleNotes ?? "" },
@@ -1012,9 +1016,9 @@ struct WorkspaceView: View {
                             .textFieldStyle(.plain)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 6)
-                            .background(LakaiTheme.accentSoft)
+                            .background(theme.accentSoft)
                             .clipShape(RoundedRectangle(cornerRadius: 6))
-                            .foregroundStyle(LakaiTheme.ink)
+                            .foregroundStyle(theme.ink)
                             .font(.system(size: 11, weight: .medium))
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1024,9 +1028,9 @@ struct WorkspaceView: View {
                 scheduleImageView(for: shot)
             }
             .padding(12)
-            .background(LakaiTheme.panel.opacity(0.96))
+            .background(theme.panel.opacity(0.96))
             .clipShape(RoundedRectangle(cornerRadius: 18))
-            .overlay(RoundedRectangle(cornerRadius: 18).stroke(LakaiTheme.panelBorder, lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: 18).stroke(theme.panelBorder, lineWidth: 1))
         }
         .opacity(shot.isOptional ? 0.3 : 1.0)
         .scaleEffect(draggedScheduleBlockID == entry.id ? 1.01 : 1)
@@ -1064,31 +1068,31 @@ struct WorkspaceView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Setup")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(LakaiTheme.mutedInk)
+                        .foregroundStyle(theme.mutedInk)
                     Text(LakaiFormatters.timeString(from: setupStart))
                         .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(LakaiTheme.ink)
+                        .foregroundStyle(theme.ink)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(8)
-                .background(LakaiTheme.accentSoft)
+                .background(theme.accentSoft)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(LakaiTheme.panelBorder, lineWidth: 1))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.panelBorder, lineWidth: 1))
             }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Dreh")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(LakaiTheme.mutedInk)
+                    .foregroundStyle(theme.mutedInk)
                 Text(LakaiFormatters.timeString(from: entry.startTime))
                     .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(LakaiTheme.ink)
+                    .foregroundStyle(theme.ink)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(8)
-            .background(LakaiTheme.accentSoft)
+            .background(theme.accentSoft)
             .clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(LakaiTheme.panelBorder, lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.panelBorder, lineWidth: 1))
         }
         .frame(width: 84, alignment: .topLeading)
     }
@@ -1120,10 +1124,10 @@ struct WorkspaceView: View {
 
     private func castColor(for hex: String) -> Color {
         let trimmed = hex.trimmingCharacters(in: .whitespaces).uppercased()
-        guard trimmed.count == 6 else { return LakaiTheme.accentStrong }
+        guard trimmed.count == 6 else { return theme.accentStrong }
         let scanner = Scanner(string: trimmed)
         var rgb: UInt64 = 0
-        guard scanner.scanHexInt64(&rgb) else { return LakaiTheme.accentStrong }
+        guard scanner.scanHexInt64(&rgb) else { return theme.accentStrong }
         return Color(
             red: Double((rgb >> 16) & 0xFF) / 255.0,
             green: Double((rgb >> 8) & 0xFF) / 255.0,
@@ -1139,7 +1143,7 @@ struct WorkspaceView: View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Cast verwalten")
                 .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(LakaiTheme.ink)
+                .foregroundStyle(theme.ink)
                 .padding(.horizontal, 16)
                 .padding(.top, 16)
                 .padding(.bottom, 12)
@@ -1154,9 +1158,9 @@ struct WorkspaceView: View {
                             .textFieldStyle(.plain)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 6)
-                            .background(LakaiTheme.accentSoft)
+                            .background(theme.accentSoft)
                             .clipShape(RoundedRectangle(cornerRadius: 6))
-                            .foregroundStyle(LakaiTheme.ink)
+                            .foregroundStyle(theme.ink)
                             .font(.system(size: 12, weight: .medium))
                             .onSubmit {
                                 addCastMemberFromDraft(dayBlockID: dayBlockID)
@@ -1174,9 +1178,9 @@ struct WorkspaceView: View {
                                 .frame(width: 28, height: 28)
                         }
                         .buttonStyle(.plain)
-                        .background(LakaiTheme.accentStrong)
+                        .background(theme.accentStrong)
                         .clipShape(Circle())
-                        .foregroundStyle(LakaiTheme.ink)
+                        .foregroundStyle(theme.ink)
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 12)
@@ -1195,7 +1199,7 @@ struct WorkspaceView: View {
         }
         .frame(width: 460)
         .frame(minHeight: 200)
-        .background(LakaiTheme.panel)
+        .background(theme.panel)
     }
 
     private func addCastMemberFromDraft(dayBlockID: UUID?) {
@@ -1218,9 +1222,9 @@ struct WorkspaceView: View {
             .textFieldStyle(.plain)
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
-            .background(LakaiTheme.accentSoft)
+            .background(theme.accentSoft)
             .clipShape(RoundedRectangle(cornerRadius: 6))
-            .foregroundStyle(LakaiTheme.ink)
+            .foregroundStyle(theme.ink)
             .font(.system(size: 12, weight: .medium))
 
             castColorPickerButton(selectedIndex: colorIdx) { idx in
@@ -1238,7 +1242,7 @@ struct WorkspaceView: View {
             )) {
                 Text("in allen Drehtagen anzeigen")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(LakaiTheme.mutedInk)
+                    .foregroundStyle(theme.mutedInk)
             }
             .toggleStyle(.checkbox)
 
@@ -1252,9 +1256,9 @@ struct WorkspaceView: View {
                     .frame(width: 24, height: 24)
             }
             .buttonStyle(.plain)
-            .background(LakaiTheme.accentSoft)
+            .background(theme.accentSoft)
             .clipShape(Circle())
-            .foregroundStyle(LakaiTheme.mutedInk)
+            .foregroundStyle(theme.mutedInk)
         }
         .padding(.horizontal, 16)
     }
@@ -1282,10 +1286,10 @@ struct WorkspaceView: View {
             HStack(spacing: 12) {
                 Text("Pause")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(LakaiTheme.ink)
+                    .foregroundStyle(theme.ink)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(LakaiTheme.accentSoft)
+                    .background(theme.accentSoft)
                     .clipShape(Capsule())
 
                 TextField("Bezeichnung", text: Binding(
@@ -1295,15 +1299,15 @@ struct WorkspaceView: View {
                 .textFieldStyle(.plain)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
-                .background(LakaiTheme.accentSoft)
+                .background(theme.accentSoft)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
-                .foregroundStyle(LakaiTheme.ink)
+                .foregroundStyle(theme.ink)
                 .font(.system(size: 13, weight: .medium))
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Dauer")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(LakaiTheme.mutedInk)
+                        .foregroundStyle(theme.mutedInk)
 
                     TextField("0:15", text: Binding(
                         get: { pauseDurationDrafts[block.id, default: LakaiFormatters.durationString(from: block.durationSeconds)] },
@@ -1315,9 +1319,9 @@ struct WorkspaceView: View {
                     .textFieldStyle(.plain)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 6)
-                    .background(LakaiTheme.accentSoft)
+                    .background(theme.accentSoft)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .foregroundStyle(LakaiTheme.ink)
+                    .foregroundStyle(theme.ink)
                     .font(.system(size: 12, weight: .medium))
                     .frame(width: 96)
                 }
@@ -1332,13 +1336,13 @@ struct WorkspaceView: View {
                         .frame(width: 26, height: 26)
                 }
                 .buttonStyle(.plain)
-                .background(LakaiTheme.accentSoft)
+                .background(theme.accentSoft)
                 .clipShape(Circle())
             }
             .padding(12)
-            .background(LakaiTheme.panel.opacity(0.96))
+            .background(theme.panel.opacity(0.96))
             .clipShape(RoundedRectangle(cornerRadius: 18))
-            .overlay(RoundedRectangle(cornerRadius: 18).stroke(LakaiTheme.panelBorder, lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: 18).stroke(theme.panelBorder, lineWidth: 1))
         }
         .scaleEffect(draggedScheduleBlockID == block.id ? 1.01 : 1)
         .overlay(reorderCardOverlay(isDragged: draggedScheduleBlockID == block.id))
@@ -1368,16 +1372,16 @@ struct WorkspaceView: View {
         VStack(alignment: .leading, spacing: 2) {
             Text("Start")
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(LakaiTheme.mutedInk)
+                .foregroundStyle(theme.mutedInk)
             Text(entry.map { LakaiFormatters.timeString(from: $0.startTime) } ?? "-")
                 .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(LakaiTheme.ink)
+                .foregroundStyle(theme.ink)
         }
         .frame(width: 84, alignment: .topLeading)
         .padding(8)
-        .background(LakaiTheme.accentSoft)
+        .background(theme.accentSoft)
         .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(LakaiTheme.panelBorder, lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.panelBorder, lineWidth: 1))
     }
 
     private func dayHeaderCard(for block: ScheduleBlock, dayNumber: Int) -> some View {
@@ -1390,10 +1394,10 @@ struct WorkspaceView: View {
         return HStack(spacing: 12) {
             Text("TAG \(dayNumber)")
                 .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(LakaiTheme.ink)
+                .foregroundStyle(theme.ink)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(LakaiTheme.accentStrong)
+                .background(theme.accentStrong)
                 .clipShape(Capsule())
 
             compactDateButton(
@@ -1421,7 +1425,7 @@ struct WorkspaceView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Drehstart")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(LakaiTheme.mutedInk)
+                    .foregroundStyle(theme.mutedInk)
 
                 TextField("8:00", text: Binding(
                     get: { dayHeaderStartTimeDrafts[block.id, default: LakaiFormatters.timeString(from: block.dayStartMinutes * 60)] },
@@ -1433,9 +1437,9 @@ struct WorkspaceView: View {
                 .textFieldStyle(.plain)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
-                .background(LakaiTheme.accentSoft)
+                .background(theme.accentSoft)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
-                .foregroundStyle(LakaiTheme.ink)
+                .foregroundStyle(theme.ink)
                 .font(.system(size: 12, weight: .medium))
                 .frame(width: 80)
             }
@@ -1443,7 +1447,7 @@ struct WorkspaceView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Setup Dauer")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(LakaiTheme.mutedInk)
+                    .foregroundStyle(theme.mutedInk)
 
                 TextField("0:15", text: Binding(
                     get: { dayHeaderSetupDurationDrafts[block.id, default: LakaiFormatters.durationString(from: block.daySetupDurationSeconds)] },
@@ -1455,9 +1459,9 @@ struct WorkspaceView: View {
                 .textFieldStyle(.plain)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
-                .background(LakaiTheme.accentSoft)
+                .background(theme.accentSoft)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
-                .foregroundStyle(LakaiTheme.ink)
+                .foregroundStyle(theme.ink)
                 .font(.system(size: 12, weight: .medium))
                 .frame(width: 80)
             }
@@ -1468,7 +1472,7 @@ struct WorkspaceView: View {
             ))
             .toggleStyle(.checkbox)
             .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(LakaiTheme.ink)
+            .foregroundStyle(theme.ink)
 
             Spacer(minLength: 0)
 
@@ -1478,8 +1482,8 @@ struct WorkspaceView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
-                .tint(LakaiTheme.accentStrong)
-                .foregroundStyle(LakaiTheme.ink)
+                .tint(theme.accentStrong)
+                .foregroundStyle(theme.ink)
                 .popover(isPresented: Binding(
                     get: { castManagementOpenDayID == block.id },
                     set: { if !$0 { castManagementOpenDayID = nil } }
@@ -1496,21 +1500,21 @@ struct WorkspaceView: View {
                     .frame(width: 26, height: 26)
             }
             .buttonStyle(.plain)
-            .background(LakaiTheme.accentSoft)
+            .background(theme.accentSoft)
             .clipShape(Circle())
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background(
             ZStack(alignment: .leading) {
-                LakaiTheme.panel.opacity(0.96)
+                theme.panel.opacity(0.96)
                 Rectangle()
-                    .fill(LakaiTheme.accentStrong)
+                    .fill(theme.accentStrong)
                     .frame(width: 4)
             }
         )
         .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(LakaiTheme.accentStrong.opacity(0.6), lineWidth: 1.5))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(theme.accentStrong.opacity(0.6), lineWidth: 1.5))
         .scaleEffect(draggedScheduleBlockID == block.id ? 1.01 : 1)
         .overlay(reorderCardOverlay(isDragged: draggedScheduleBlockID == block.id))
         .zIndex(draggedScheduleBlockID == block.id ? 2 : 0)
@@ -1540,40 +1544,40 @@ struct WorkspaceView: View {
 
         return ZStack {
             RoundedRectangle(cornerRadius: 14)
-                .fill(LakaiTheme.canvasAlt.opacity(0.75))
+                .fill(theme.canvasAlt.opacity(0.75))
 
             if let imageURL {
                 CachedAssetImageView(imageURL: imageURL, contentMode: .fill) {
                     Image(systemName: "photo")
                         .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(LakaiTheme.mutedInk)
+                        .foregroundStyle(theme.mutedInk)
                 }
                 .frame(width: 144, height: 84)
                 .clipped()
             } else {
                 Image(systemName: "photo")
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(LakaiTheme.mutedInk)
+                    .foregroundStyle(theme.mutedInk)
             }
         }
         .frame(width: 144, height: 84)
         .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(LakaiTheme.panelBorder, lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(theme.panelBorder, lineWidth: 1))
     }
 
     private func labeledField(title: String, text: Binding<String>, width: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(LakaiTheme.ink)
+                .foregroundStyle(theme.ink)
 
             TextField(title, text: text)
                 .textFieldStyle(.plain)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
-                .background(LakaiTheme.accentSoft)
+                .background(theme.accentSoft)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
-                .foregroundStyle(LakaiTheme.ink)
+                .foregroundStyle(theme.ink)
                 .font(.system(size: 11, weight: .medium))
                 .frame(width: width)
         }
@@ -1583,15 +1587,15 @@ struct WorkspaceView: View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title)
                 .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(LakaiTheme.ink)
+                .foregroundStyle(theme.ink)
 
             TextField(title, text: Binding(get: { value }, set: onChange))
                 .textFieldStyle(.plain)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
-                .background(LakaiTheme.accentSoft)
+                .background(theme.accentSoft)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
-                .foregroundStyle(LakaiTheme.ink)
+                .foregroundStyle(theme.ink)
                 .font(.system(size: 12, weight: .medium))
                 .frame(width: 118)
         }
@@ -1601,14 +1605,14 @@ struct WorkspaceView: View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title)
                 .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(LakaiTheme.mutedInk)
+                .foregroundStyle(theme.mutedInk)
 
             Button(value) {
                 isPresented.wrappedValue.toggle()
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .foregroundStyle(LakaiTheme.ink)
+            .foregroundStyle(theme.ink)
             .popover(isPresented: isPresented, arrowEdge: .bottom) {
                 content()
             }
@@ -1620,11 +1624,11 @@ struct WorkspaceView: View {
             if let imageURL {
                 CachedAssetImageView(imageURL: imageURL, contentMode: .fit) {
                     RoundedRectangle(cornerRadius: 6)
-                        .fill(LakaiTheme.accentSoft)
+                        .fill(theme.accentSoft)
                 }
                 .frame(width: 26, height: 26)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
-                .overlay(RoundedRectangle(cornerRadius: 6).stroke(LakaiTheme.panelBorder, lineWidth: 1))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(theme.panelBorder, lineWidth: 1))
             }
 
             Button(kind == .client ? "Kundenlogo" : "Produktionslogo") {
@@ -1632,7 +1636,7 @@ struct WorkspaceView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .foregroundStyle(LakaiTheme.ink)
+            .foregroundStyle(theme.ink)
 
             if imageURL != nil {
                 Button("x") {
@@ -1640,7 +1644,7 @@ struct WorkspaceView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .foregroundStyle(LakaiTheme.ink)
+                .foregroundStyle(theme.ink)
             }
         }
     }
@@ -1649,14 +1653,14 @@ struct WorkspaceView: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
                 .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(LakaiTheme.mutedInk)
+                .foregroundStyle(theme.mutedInk)
             Text(value)
                 .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(LakaiTheme.ink)
+                .foregroundStyle(theme.ink)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(LakaiTheme.accentSoft)
+        .background(theme.accentSoft)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -1664,16 +1668,16 @@ struct WorkspaceView: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
                 .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(LakaiTheme.mutedInk)
+                .foregroundStyle(theme.mutedInk)
             Text(value)
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(LakaiTheme.ink)
+                .foregroundStyle(theme.ink)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(LakaiTheme.panelElevated.opacity(0.96))
+        .background(theme.panelElevated.opacity(0.96))
         .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(LakaiTheme.panelBorder, lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(theme.panelBorder, lineWidth: 1))
     }
 
     private func date(fromMinutes minutes: Int, on date: Date) -> Date {
@@ -1730,7 +1734,7 @@ struct WorkspaceView: View {
         let lineWidth: CGFloat = isDragged ? 2.0 : 0
 
         return RoundedRectangle(cornerRadius: 18)
-            .stroke(LakaiTheme.ink.opacity(isDragged ? 0.95 : 0), lineWidth: lineWidth)
+            .stroke(theme.ink.opacity(isDragged ? 0.95 : 0), lineWidth: lineWidth)
     }
 
     private var dragPreviewPlaceholder: some View {

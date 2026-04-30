@@ -23,6 +23,8 @@
 		10000000000000000000020B /* WorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000010B /* WorkspaceView.swift */; };
 		10000000000000000000020C /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000010C /* RootView.swift */; };
 		10000000000000000000020D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000010D /* Assets.xcassets */; };
+		100000000000000000000211 /* dark.xml in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000120 /* dark.xml */; };
+		100000000000000000000212 /* light.xml in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000121 /* light.xml */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -44,6 +46,8 @@
 		10000000000000000000010E /* ScriptSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptSyncService.swift; sourceTree = "<group>"; };
 		10000000000000000000010F /* ScriptTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptTextEditor.swift; sourceTree = "<group>"; };
 		100000000000000000000115 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		100000000000000000000120 /* dark.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = dark.xml; sourceTree = "<group>"; };
+		100000000000000000000121 /* light.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = light.xml; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -83,6 +87,7 @@
 				100000000000000000000007 /* Views */,
 				100000000000000000000008 /* Components */,
 				100000000000000000000009 /* Utilities */,
+				10000000000000000000001A /* Themes */,
 				10000000000000000000010D /* Assets.xcassets */,
 			);
 			path = Lakai;
@@ -135,6 +140,15 @@
 				100000000000000000000103 /* Theme.swift */,
 			);
 			path = Utilities;
+			sourceTree = "<group>";
+		};
+		10000000000000000000001A /* Themes */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000120 /* dark.xml */,
+				100000000000000000000121 /* light.xml */,
+			);
+			path = Themes;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -195,6 +209,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				10000000000000000000020D /* Assets.xcassets in Resources */,
+				100000000000000000000211 /* dark.xml in Resources */,
+				100000000000000000000212 /* light.xml in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -31,7 +31,7 @@ struct PDFExportService {
             case .shot:
                 if let shot = project.shot(with: itemRef.id) {
                     rows.append(StoryboardTableRow(
-                        shotNumber: project.displayShotNumber(for: shot.id),
+                        shotNumber: project.displayShotNumber(for: shot.id).replacingOccurrences(of: "(opt)", with: "\n(opt)"),
                         size: shot.size.title,
                         description: shot.descriptionText,
                         notes: shot.notes,
@@ -102,7 +102,7 @@ struct PDFExportService {
             }()
             return ScheduleTableRow(
                 rowKind: isPause ? .pause : .shot,
-                shotLabel: isPause ? "Pause" : (entry.shot.map { project.displayShotNumber(for: $0.id) } ?? ""),
+                shotLabel: isPause ? "Pause" : (entry.shot.map { project.displayShotNumber(for: $0.id).replacingOccurrences(of: "(opt)", with: "\n(opt)") } ?? ""),
                 size: entry.shot?.size.title ?? "",
                 setupStart: isOptional ? "" : (entry.setupStart.map(LakaiFormatters.timeString(from:)) ?? ""),
                 shootStart: isOptional ? "" : LakaiFormatters.timeString(from: entry.startTime),
@@ -158,6 +158,7 @@ struct PDFExportService {
             currentY = metrics.pageHeight - metrics.marginTop
 
             fillPageBackground(context: context, mediaBox: mediaBox)
+            drawPageNumber(context: context, pageNumber: pageNumber, metrics: metrics, mediaBox: mediaBox)
             currentY = drawStoryboardPageHeader(context: context, project: project, shotCount: rows.count, metrics: metrics, startY: currentY)
             currentY = drawTableHeader(context: context, columns: columns, metrics: metrics, baselineY: currentY)
         }
@@ -231,6 +232,7 @@ struct PDFExportService {
             currentY = metrics.pageHeight - metrics.marginTop
 
             fillPageBackground(context: context, mediaBox: mediaBox)
+            drawPageNumber(context: context, pageNumber: pageNumber, metrics: metrics, mediaBox: mediaBox)
             currentY = drawSchedulePageHeader(
                 context: context,
                 project: project,
@@ -325,7 +327,8 @@ struct PDFExportService {
             "Version v\(project.scheduleVersion) | Export: \(LakaiFormatters.exportDate.string(from: Date()))",
             "Drehtag: \(LakaiFormatters.shootDate.string(from: displayDate))\(bUnitSuffix) | Start: \(LakaiFormatters.timeString(from: displayStartMinutes * 60))",
             "Regie: \(project.crewInfo.director) | 1st AD: \(project.crewInfo.firstAD) | Producer: \(project.crewInfo.producer)",
-            "DoP: \(project.crewInfo.dop) | Kunde: \(project.crewInfo.client)"
+            "DoP: \(project.crewInfo.dop) | Kunde: \(project.crewInfo.client)",
+            "Location: \(project.crewInfo.location) | Props: \(project.crewInfo.props)"
         ]
 
         for line in infoLines {
@@ -365,7 +368,7 @@ struct PDFExportService {
         let notesColumn = columns.first(where: { $0.key == .notes })?.width ?? 0
         let imageColumn = columns.first(where: { $0.key == .image })?.width ?? 0
 
-        let descriptionHeight = measuredTextHeight(row.description, width: descriptionColumn - (metrics.cellHorizontalPadding * 2), font: metrics.bodyFont)
+        let descriptionHeight = measuredTextHeight(row.description, width: descriptionColumn - (metrics.cellHorizontalPadding * 2), font: metrics.boldFont)
         let notesHeight = measuredTextHeight(row.notes, width: notesColumn - (metrics.cellHorizontalPadding * 2), font: metrics.bodyFont)
         let imageHeight = max(0, (imageColumn - (metrics.cellHorizontalPadding * 2)) * 9 / 16)
 
@@ -379,9 +382,9 @@ struct PDFExportService {
         let scheduleNotesColumn = columns.first(where: { $0.key == .scheduleNotes })?.width ?? 0
         let imageColumn = columns.first(where: { $0.key == .image })?.width ?? 0
 
-        let descriptionHeight = measuredTextHeight(row.description, width: descriptionColumn - (metrics.cellHorizontalPadding * 2), font: metrics.bodyFont)
-        let shotNotesHeight = measuredTextHeight(row.shotNotes, width: shotNotesColumn - (metrics.cellHorizontalPadding * 2), font: metrics.bodyFont)
-        let scheduleNotesHeight = measuredTextHeight(row.scheduleNotes, width: scheduleNotesColumn - (metrics.cellHorizontalPadding * 2), font: metrics.bodyFont)
+        let descriptionHeight = measuredTextHeight(row.description, width: descriptionColumn - (metrics.cellHorizontalPadding * 2), font: metrics.scheduleBodyFont)
+        let shotNotesHeight = measuredTextHeight(row.shotNotes, width: shotNotesColumn - (metrics.cellHorizontalPadding * 2), font: metrics.scheduleBodyFont)
+        let scheduleNotesHeight = measuredTextHeight(row.scheduleNotes, width: scheduleNotesColumn - (metrics.cellHorizontalPadding * 2), font: metrics.scheduleBodyFont)
         let imageHeight = max(0, (imageColumn - (metrics.cellHorizontalPadding * 2)) * 9 / 16)
 
         let contentHeight = max(max(descriptionHeight, shotNotesHeight), max(scheduleNotesHeight, imageHeight))
@@ -443,15 +446,15 @@ struct PDFExportService {
 
             switch column.key {
             case .shotNumber:
-                drawWrappedText(row.shotNumber, in: contentRect, context: context, font: metrics.bodyFont, alignment: .center)
+                drawWrappedText(row.shotNumber, in: contentRect, context: context, font: metrics.boldFont, alignment: .center)
             case .size:
                 drawWrappedText(row.size, in: contentRect, context: context, font: metrics.bodyFont, alignment: .left)
             case .description:
-                drawWrappedText(row.description, in: contentRect, context: context, font: metrics.bodyFont, alignment: .left)
+                drawWrappedText(row.description, in: contentRect, context: context, font: metrics.boldFont, alignment: .left)
             case .notes:
                 drawWrappedText(row.notes, in: contentRect, context: context, font: metrics.bodyFont, alignment: .left)
             case .image:
-                drawImageIfAvailable(imageFileName: row.imageFileName, in: contentRect, context: context, activeProjectURL: activeProjectURL, persistence: persistence)
+                drawImageIfAvailable(imageFileName: row.imageFileName, in: contentRect, context: context, targetPPI: 300, activeProjectURL: activeProjectURL, persistence: persistence)
             default:
                 break
             }
@@ -500,27 +503,27 @@ struct PDFExportService {
 
             switch column.key {
             case .shotNumber:
-                drawWrappedText(row.shotLabel, in: contentRect, context: context, font: metrics.bodyFont, alignment: .center)
+                drawWrappedText(row.shotLabel, in: contentRect, context: context, font: metrics.scheduleBodyFont, alignment: .center)
             case .size:
-                drawWrappedText(row.size, in: contentRect, context: context, font: metrics.bodyFont, alignment: .left)
+                drawWrappedText(row.size, in: contentRect, context: context, font: metrics.scheduleBodyFont, alignment: .left)
             case .cast:
-                drawWrappedText(row.castNames, in: contentRect, context: context, font: metrics.bodyFont, alignment: .left)
+                drawWrappedText(row.castNames, in: contentRect, context: context, font: metrics.scheduleBodyFont, alignment: .left)
             case .setupStart:
-                drawWrappedText(row.setupStart, in: contentRect, context: context, font: metrics.bodyFont, alignment: .center)
+                drawWrappedText(row.setupStart, in: contentRect, context: context, font: metrics.scheduleBodyFont, alignment: .center)
             case .shootStart:
-                drawWrappedText(row.shootStart, in: contentRect, context: context, font: metrics.bodyFont, alignment: .center)
+                drawWrappedText(row.shootStart, in: contentRect, context: context, font: metrics.scheduleBodyFont, alignment: .center)
             case .shootEnd:
-                drawWrappedText(row.shootEnd, in: contentRect, context: context, font: metrics.bodyFont, alignment: .center)
+                drawWrappedText(row.shootEnd, in: contentRect, context: context, font: metrics.scheduleBodyFont, alignment: .center)
             case .description:
-                drawWrappedText(row.description, in: contentRect, context: context, font: metrics.bodyFont, alignment: .left)
+                drawWrappedText(row.description, in: contentRect, context: context, font: metrics.scheduleBodyFont, alignment: .left)
             case .shotNotes:
-                drawWrappedText(row.shotNotes, in: contentRect, context: context, font: metrics.bodyFont, alignment: .left)
+                drawWrappedText(row.shotNotes, in: contentRect, context: context, font: metrics.scheduleBodyFont, alignment: .left)
             case .scheduleNotes:
-                drawWrappedText(row.scheduleNotes, in: contentRect, context: context, font: metrics.bodyFont, alignment: .left)
+                drawWrappedText(row.scheduleNotes, in: contentRect, context: context, font: metrics.scheduleBodyFont, alignment: .left)
             case .notes:
                 break
             case .image:
-                drawImageIfAvailable(imageFileName: row.imageFileName, in: contentRect, context: context, activeProjectURL: activeProjectURL, persistence: persistence)
+                drawImageIfAvailable(imageFileName: row.imageFileName, in: contentRect, context: context, targetPPI: 150, activeProjectURL: activeProjectURL, persistence: persistence)
             }
 
             x += column.width
@@ -530,6 +533,18 @@ struct PDFExportService {
     private func fillPageBackground(context: CGContext, mediaBox: CGRect) {
         context.setFillColor(NSColor.white.cgColor)
         context.fill(mediaBox)
+    }
+
+    private func drawPageNumber(context: CGContext, pageNumber: Int, metrics: PDFPageMetrics, mediaBox: CGRect) {
+        let label = "Seite \(pageNumber)"
+        let textHeight: CGFloat = 10
+        let textRect = CGRect(
+            x: mediaBox.minX + metrics.marginLeft,
+            y: mediaBox.minY + (metrics.marginBottom - textHeight) / 2,
+            width: mediaBox.width - metrics.marginLeft - metrics.marginRight,
+            height: textHeight
+        )
+        drawWrappedText(label, in: textRect, context: context, font: metrics.metaFont, alignment: .center)
     }
 
     private func hexToRGB(_ hex: String) -> NSColor? {
@@ -565,6 +580,7 @@ struct PDFExportService {
         imageFileName: String?,
         in rect: CGRect,
         context: CGContext,
+        targetPPI: CGFloat,
         activeProjectURL: URL?,
         persistence: ProjectPersistenceService
     ) {
@@ -579,8 +595,51 @@ struct PDFExportService {
         }
 
         let drawRect = aspectFitRect(for: cgImage, in: rect)
+        let displayImage = downsampleToJPEG(cgImage, drawRect: drawRect, targetPPI: targetPPI) ?? cgImage
         context.interpolationQuality = .high
-        context.draw(cgImage, in: drawRect)
+        context.draw(displayImage, in: drawRect)
+    }
+
+    /// Downsample `image` to the given PPI relative to the 72pt PDF coordinate space,
+    /// then JPEG-encode it so Core Graphics embeds a compressed JPEG stream in the PDF.
+    private func downsampleToJPEG(_ image: CGImage, drawRect: CGRect, targetPPI: CGFloat) -> CGImage? {
+        let scale = targetPPI / 72.0
+        let targetWidth = Int(ceil(drawRect.width * scale))
+        let targetHeight = Int(ceil(drawRect.height * scale))
+
+        // Skip upsampling: only downsample when source is larger.
+        guard targetWidth > 0, targetHeight > 0,
+              targetWidth < image.width || targetHeight < image.height else {
+            return nil
+        }
+
+        guard let colorSpace = image.colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB),
+              let bitmapCtx = CGContext(
+                data: nil,
+                width: targetWidth,
+                height: targetHeight,
+                bitsPerComponent: 8,
+                bytesPerRow: 0,
+                space: colorSpace,
+                bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+              ) else {
+            return nil
+        }
+
+        bitmapCtx.interpolationQuality = .high
+        bitmapCtx.draw(image, in: CGRect(x: 0, y: 0, width: targetWidth, height: targetHeight))
+
+        guard let downsampled = bitmapCtx.makeImage() else { return nil }
+
+        // JPEG-encode so the PDF embeds a compact JPEG stream.
+        let rep = NSBitmapImageRep(cgImage: downsampled)
+        guard let jpegData = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.75]),
+              let source = CGImageSourceCreateWithData(jpegData as CFData, nil),
+              let jpegImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+            return nil
+        }
+
+        return jpegImage
     }
 
     private func loadCGImage(from imageURL: URL) -> CGImage? {
@@ -716,17 +775,29 @@ struct PDFExportService {
     }
 
     private func scheduleColumns(for metrics: PDFPageMetrics) -> [PDFColumn] {
-        [
-            PDFColumn(title: "Shot", key: .shotNumber, width: 56, alignment: .center),
-            PDFColumn(title: "Setup", key: .setupStart, width: 48, alignment: .center),
-            PDFColumn(title: "Start", key: .shootStart, width: 48, alignment: .center),
-            PDFColumn(title: "Ende", key: .shootEnd, width: 48, alignment: .center),
-            PDFColumn(title: "Groesse", key: .size, width: 72, alignment: .left),
-            PDFColumn(title: "Cast", key: .cast, width: 72, alignment: .left),
-            PDFColumn(title: "Beschreibung", key: .description, width: 148, alignment: .left),
-            PDFColumn(title: "Shot-Notizen", key: .shotNotes, width: 100, alignment: .left),
-            PDFColumn(title: "Plan-Notizen", key: .scheduleNotes, width: 100, alignment: .left),
-            PDFColumn(title: "Bild", key: .image, width: metrics.tableWidth - 692, alignment: .left)
+        // Fixed-width columns — values chosen to be as compact as their content allows.
+        let shotW: CGFloat = 44
+        let setupW: CGFloat = 36
+        let startW: CGFloat = 36
+        let endeW: CGFloat = 36
+        let groesseW: CGFloat = 56
+        let castW: CGFloat = 72
+        let shotNotesW: CGFloat = 96
+        let planNotesW: CGFloat = 96
+        let bildW: CGFloat = 94
+        // Beschreibung gets all remaining space.
+        let beschreibungW = metrics.tableWidth - shotW - setupW - startW - endeW - groesseW - castW - shotNotesW - planNotesW - bildW
+        return [
+            PDFColumn(title: "Shot", key: .shotNumber, width: shotW, alignment: .center),
+            PDFColumn(title: "Setup", key: .setupStart, width: setupW, alignment: .center),
+            PDFColumn(title: "Start", key: .shootStart, width: startW, alignment: .center),
+            PDFColumn(title: "Ende", key: .shootEnd, width: endeW, alignment: .center),
+            PDFColumn(title: "Groesse", key: .size, width: groesseW, alignment: .left),
+            PDFColumn(title: "Cast", key: .cast, width: castW, alignment: .left),
+            PDFColumn(title: "Beschreibung", key: .description, width: beschreibungW, alignment: .left),
+            PDFColumn(title: "Shot-Notizen", key: .shotNotes, width: shotNotesW, alignment: .left),
+            PDFColumn(title: "Plan-Notizen", key: .scheduleNotes, width: planNotesW, alignment: .left),
+            PDFColumn(title: "Bild", key: .image, width: bildW, alignment: .left)
         ]
     }
 }
@@ -747,6 +818,8 @@ private struct PDFPageMetrics {
     let boldFont = NSFont.boldSystemFont(ofSize: 9)
     let metaFont = NSFont.systemFont(ofSize: 9, weight: .regular)
     let bodyFont = NSFont.systemFont(ofSize: 8.5, weight: .regular)
+    // Schedule table uses a smaller body font (-20%) for higher information density.
+    let scheduleBodyFont = NSFont.systemFont(ofSize: 7, weight: .regular)
 
     init(pageSize: CGSize) {
         self.pageWidth = pageSize.width

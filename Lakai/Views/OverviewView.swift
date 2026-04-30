@@ -2,6 +2,8 @@ import SwiftUI
 
 struct OverviewView: View {
     @ObservedObject var appState: AppState
+    @EnvironmentObject var themeManager: ThemeManager
+    private var theme: ThemeDefinition { themeManager.current }
 
     private let columns = [
         GridItem(.adaptive(minimum: 260, maximum: 360), spacing: 18)
@@ -9,7 +11,7 @@ struct OverviewView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(colors: [LakaiTheme.canvas, LakaiTheme.canvasAlt], startPoint: .topLeading, endPoint: .bottomTrailing)
+            LinearGradient(colors: [theme.canvas, theme.canvasAlt], startPoint: .topLeading, endPoint: .bottomTrailing)
                 .ignoresSafeArea()
 
             ScrollView {
@@ -18,10 +20,10 @@ struct OverviewView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Lakai")
                                 .font(.system(size: 34, weight: .black))
-                                .foregroundStyle(LakaiTheme.ink)
+                                .foregroundStyle(theme.ink)
                             Text("Regie-Tool für Shotlists, Storyboards und Drehpläne.")
                                 .font(.system(size: 14, weight: .medium))
-                                .foregroundStyle(LakaiTheme.mutedInk)
+                                .foregroundStyle(theme.mutedInk)
                         }
 
                         Spacer()
@@ -31,14 +33,14 @@ struct OverviewView: View {
                                 appState.importProjectArchive()
                             }
                             .buttonStyle(.bordered)
-                            .foregroundStyle(LakaiTheme.ink)
+                            .foregroundStyle(theme.ink)
 
                             Button("Neues Projekt") {
                                 appState.createProject()
                             }
                             .buttonStyle(.borderedProminent)
-                            .tint(LakaiTheme.accent)
-                            .foregroundStyle(LakaiTheme.ink)
+                            .tint(theme.accent)
+                            .foregroundStyle(theme.ink)
                         }
                     }
 
@@ -53,7 +55,7 @@ struct OverviewView: View {
                                     VStack(alignment: .leading, spacing: 14) {
                                         Text(project.title)
                                             .font(.system(size: 20, weight: .bold))
-                                            .foregroundStyle(LakaiTheme.ink)
+                                            .foregroundStyle(theme.ink)
                                             .frame(maxWidth: .infinity, alignment: .leading)
 
                                         HStack(spacing: 12) {
@@ -66,13 +68,13 @@ struct OverviewView: View {
 
                                         Text("Geändert: \(LakaiFormatters.libraryDate.string(from: project.modifiedAt))")
                                             .font(.system(size: 11, weight: .medium))
-                                            .foregroundStyle(LakaiTheme.mutedInk)
+                                            .foregroundStyle(theme.mutedInk)
                                     }
                                     .padding(18)
                                     .frame(height: 180)
-                                    .background(LakaiTheme.panel)
+                                    .background(theme.panel)
                                     .clipShape(RoundedRectangle(cornerRadius: 22))
-                                    .overlay(RoundedRectangle(cornerRadius: 22).stroke(LakaiTheme.panelBorder, lineWidth: 1))
+                                    .overlay(RoundedRectangle(cornerRadius: 22).stroke(theme.panelBorder, lineWidth: 1))
                                 }
                                 .buttonStyle(.plain)
 
@@ -82,7 +84,7 @@ struct OverviewView: View {
                                     Image(systemName: "trash")
                                         .font(.system(size: 11, weight: .bold))
                                         .frame(width: 28, height: 28)
-                                        .background(LakaiTheme.accentSoft)
+                                        .background(theme.accentSoft)
                                         .clipShape(Circle())
                                 }
                                 .buttonStyle(.plain)
@@ -103,14 +105,14 @@ struct OverviewView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Neues Projekt")
                     .font(.system(size: 22, weight: .bold))
-                    .foregroundStyle(LakaiTheme.ink)
+                    .foregroundStyle(theme.ink)
 
                 ZStack {
                     RoundedRectangle(cornerRadius: 18)
-                        .fill(LakaiTheme.accentSoft)
+                        .fill(theme.accentSoft)
                     Image(systemName: "plus")
                         .font(.system(size: 34, weight: .bold))
-                        .foregroundStyle(LakaiTheme.accent)
+                        .foregroundStyle(theme.accent)
                 }
                 .frame(height: 86)
 
@@ -118,9 +120,9 @@ struct OverviewView: View {
             }
             .padding(18)
             .frame(height: 180)
-            .background(LakaiTheme.panelElevated.opacity(0.96))
+            .background(theme.panelElevated.opacity(0.96))
             .clipShape(RoundedRectangle(cornerRadius: 22))
-            .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [9, 8])).foregroundStyle(LakaiTheme.panelBorder))
+            .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [9, 8])).foregroundStyle(theme.panelBorder))
         }
         .buttonStyle(.plain)
     }
@@ -129,14 +131,14 @@ struct OverviewView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(LakaiTheme.mutedInk)
+                .foregroundStyle(theme.mutedInk)
             Text(value)
                 .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(LakaiTheme.ink)
+                .foregroundStyle(theme.ink)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(LakaiTheme.accentSoft.opacity(0.72))
+        .background(theme.accentSoft.opacity(0.72))
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }

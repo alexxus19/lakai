@@ -8,6 +8,9 @@ Lakai is a native macOS directing tool for creating, organizing, versioning, and
 
 > **PRIO 1 — DOKUMENTATIONSPFLICHT**: Jede funktionale, strukturelle oder UX-Änderung muss sofort in `claude.md` (Session log + betroffene Abschnitte) nachgetragen werden. Keine Implementierung gilt als abgeschlossen ohne aktualisierten Dokumentationsstand.
 
+> **PRIO 2 — BUILD-PFLICHT**: Jedes mal, wenn alle Änderungen umgesetzt worden, soll ein Build durchgeführt werden und in lakai/Build kopiert werden, damit die App getestet werden kann.
+
+
 1. The app name is Lakai.
 2. The app is a native macOS app built with SwiftUI.
 3. The app supports project overview, script editing, shotlist editing, shooting schedule planning, PDF export, XML persistence, image attachment, and ZIP import/export.
@@ -48,7 +51,7 @@ Lakai is a native macOS directing tool for creating, organizing, versioning, and
 ### Build & Deployment (Non-Negotiable)
 
 - After each completed implementation pass, a compiled test build of the app must be produced inside the repository directory so it can be opened directly for manual testing.
-- The build output must be placed in `/Build/Lakai.app` so users can test the latest changes without rebuilding via Xcode.
+- The build output must be placed in `/Lakai.app` (project root) so users can test the latest changes without rebuilding via Xcode.
 
 ## Functional Requirements
 

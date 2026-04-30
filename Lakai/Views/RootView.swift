@@ -4,12 +4,14 @@ import SwiftUI
 // Configures the underlying NSWindow so the title bar is always transparent,
 // letting the canvas gradient show behind the traffic-light buttons.
 private struct WindowTitleBarConfigurator: NSViewRepresentable {
+    let canvasColor: NSColor
+
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
         DispatchQueue.main.async {
             guard let window = view.window else { return }
             window.titlebarAppearsTransparent = true
-            window.backgroundColor = NSColor(LakaiTheme.canvas)
+            window.backgroundColor = canvasColor
         }
         return view
     }
@@ -17,16 +19,17 @@ private struct WindowTitleBarConfigurator: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {
         guard let window = nsView.window else { return }
         window.titlebarAppearsTransparent = true
-        window.backgroundColor = NSColor(LakaiTheme.canvas)
+        window.backgroundColor = canvasColor
     }
 }
 
 struct RootView: View {
     @StateObject private var appState = AppState()
+    @EnvironmentObject var themeManager: ThemeManager
 
     var body: some View {
         ZStack {
-            WindowTitleBarConfigurator()
+            WindowTitleBarConfigurator(canvasColor: themeManager.current.nsCanvas)
                 .frame(width: 0, height: 0)
 
             if appState.activeProject == nil {
@@ -40,6 +43,7 @@ struct RootView: View {
             }
         }
         .frame(minWidth: 1220, minHeight: 820)
+        .preferredColorScheme(themeManager.current.colorScheme)
         .animation(.snappy(duration: 0.34, extraBounce: 0.04), value: appState.activeProject?.id)
         .alert("Lakai", isPresented: Binding(
             get: { appState.errorMessage != nil },

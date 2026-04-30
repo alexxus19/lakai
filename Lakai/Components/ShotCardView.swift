@@ -160,6 +160,9 @@ struct ShotCardView: View {
     let durationBinding: Binding<String>
     let onContextMenuRequest: (UUID, CGPoint) -> Void
 
+    @EnvironmentObject var themeManager: ThemeManager
+    private var theme: ThemeDefinition { themeManager.current }
+
     @State private var isHoveringImage = false
     @State private var isImageDropTarget = false
     @State private var pendingDroppedImageURL: URL?
@@ -175,21 +178,21 @@ struct ShotCardView: View {
             VStack(alignment: .leading, spacing: 7) {
                 TextEditor(text: descriptionBinding)
                     .font(.system(size: 12, weight: .regular))
-                    .foregroundStyle(LakaiTheme.ink)
+                    .foregroundStyle(theme.ink)
                     .scrollContentBackground(.hidden)
                     .padding(6)
                     .frame(minHeight: 52, maxHeight: 64)
-                    .background(LakaiTheme.accentSoft)
+                    .background(theme.accentSoft)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(LakaiTheme.panelBorder, lineWidth: 1))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(theme.panelBorder, lineWidth: 1))
 
                 TextField("Anmerkungen / Kameramoves", text: notesBinding)
                     .textFieldStyle(.plain)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 5)
-                    .background(LakaiTheme.accentSoft)
+                    .background(theme.accentSoft)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .foregroundStyle(LakaiTheme.ink)
+                    .foregroundStyle(theme.ink)
                     .font(.system(size: 11, weight: .regular))
 
                 if mode == .schedule {
@@ -207,7 +210,7 @@ struct ShotCardView: View {
         .padding(12)
         .background(cardBackgroundColor)
         .clipShape(RoundedRectangle(cornerRadius: 18))
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(LakaiTheme.panelBorder, lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(theme.panelBorder, lineWidth: 1))
         .contentShape(RoundedRectangle(cornerRadius: 18))
         .overlay {
             RightClickCaptureView {
@@ -237,13 +240,13 @@ struct ShotCardView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("#\(shotNumber)")
                 .font(.system(size: mode == .shotlist ? 21 : 16, weight: .bold))
-                .foregroundStyle(LakaiTheme.ink)
+                .foregroundStyle(theme.ink)
                 .lineLimit(1)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Groesse")
                     .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(LakaiTheme.mutedInk)
+                    .foregroundStyle(theme.mutedInk)
                     .textCase(.uppercase)
 
                 Button {
@@ -254,18 +257,18 @@ struct ShotCardView: View {
                             .lineLimit(1)
                             .multilineTextAlignment(.leading)
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Color.white)
+                            .foregroundStyle(theme.ink)
 
                         Spacer(minLength: 0)
 
                         Image(systemName: "chevron.down")
                             .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(Color.white.opacity(0.9))
+                            .foregroundStyle(theme.ink.opacity(0.7))
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 7)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(LakaiTheme.accentSoft)
+                    .background(theme.accentSoft)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .contentShape(RoundedRectangle(cornerRadius: 12))
                 }
@@ -280,20 +283,20 @@ struct ShotCardView: View {
                                 HStack {
                                     Text(size.title)
                                         .font(.system(size: 12, weight: .semibold))
-                                        .foregroundStyle(Color.white)
+                                        .foregroundStyle(theme.ink)
 
                                     Spacer(minLength: 0)
 
                                     if sizeBinding.wrappedValue == size {
                                         Image(systemName: "checkmark")
                                             .font(.system(size: 10, weight: .bold))
-                                            .foregroundStyle(Color.white)
+                                            .foregroundStyle(theme.ink)
                                     }
                                 }
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 7)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(LakaiTheme.panel.opacity(0.96))
+                                .background(theme.panel.opacity(0.96))
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
                             }
                             .buttonStyle(.plain)
@@ -301,7 +304,7 @@ struct ShotCardView: View {
                     }
                     .padding(8)
                     .frame(width: 190)
-                    .background(LakaiTheme.canvas)
+                    .background(theme.canvas)
                 }
             }
 
@@ -316,7 +319,7 @@ struct ShotCardView: View {
                 return color.opacity(0.55)
             }
         }
-        return LakaiTheme.panel.opacity(0.96)
+        return theme.panel.opacity(0.96)
     }
 
     private func colorFromHex(_ hex: String) -> Color? {
@@ -337,17 +340,17 @@ struct ShotCardView: View {
     private var imagePanel: some View {
         let content = ZStack {
             RoundedRectangle(cornerRadius: 16)
-                .fill(LakaiTheme.canvasAlt.opacity(0.7))
+                .fill(theme.canvasAlt.opacity(0.7))
 
             if let imageURL {
                 CachedAssetImageView(imageURL: imageURL, contentMode: .fill) {
                     VStack(spacing: 8) {
                         Image(systemName: "photo")
                             .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(LakaiTheme.mutedInk)
+                            .foregroundStyle(theme.mutedInk)
                         Text("Bild laden...")
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(LakaiTheme.mutedInk)
+                            .foregroundStyle(theme.mutedInk)
                     }
                 }
                 .frame(width: 232, height: 130)
@@ -356,10 +359,10 @@ struct ShotCardView: View {
                 VStack(spacing: 8) {
                     Image(systemName: "photo")
                         .font(.system(size: 20, weight: .medium))
-                        .foregroundStyle(LakaiTheme.mutedInk)
+                        .foregroundStyle(theme.mutedInk)
                     Text(mode == .shotlist ? "Bild hinzufügen" : "Kein Bild")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(LakaiTheme.mutedInk)
+                        .foregroundStyle(theme.mutedInk)
                 }
             }
 
@@ -378,12 +381,12 @@ struct ShotCardView: View {
         }
         .frame(width: 232, height: 130)
         .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(LakaiTheme.panelBorder, lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(theme.panelBorder, lineWidth: 1))
         .overlay {
             if isImageDropTarget {
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(LakaiTheme.accent, style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
-                    .background(RoundedRectangle(cornerRadius: 16).fill(LakaiTheme.accent.opacity(0.16)))
+                    .stroke(theme.accent, style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
+                    .background(RoundedRectangle(cornerRadius: 16).fill(theme.accent.opacity(0.16)))
             }
         }
         .contentShape(RoundedRectangle(cornerRadius: 16))
@@ -460,22 +463,22 @@ struct ShotCardView: View {
         }
         .buttonStyle(.borderedProminent)
         .controlSize(.small)
-        .tint(LakaiTheme.accentStrong)
+        .tint(theme.accentStrong)
     }
 
     private func labeledField(title: String, text: Binding<String>, width: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(LakaiTheme.ink)
+                .foregroundStyle(theme.ink)
 
             TextField(title, text: text)
                 .textFieldStyle(.plain)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
-                .background(LakaiTheme.accentSoft)
+                .background(theme.accentSoft)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
-                .foregroundStyle(LakaiTheme.ink)
+                .foregroundStyle(theme.ink)
                 .font(.system(size: 12, weight: .medium))
                 .frame(width: width)
         }

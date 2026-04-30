@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<theme id="light" colorScheme="light">
+    <colors>
+        <color name="canvas"        hex="EFEFEF"/>
+        <color name="canvasAlt"     hex="E4E4E4"/>
+        <color name="panel"         hex="FFFFFF"/>
+        <color name="panelElevated" hex="FFFFFF"/>
+        <color name="panelBorder"   hex="D0D0D0"/>
+        <color name="ink"           hex="1A1A1A"/>
+        <color name="mutedInk"      hex="787878"/>
+        <color name="accent"        hex="3D3830"/>
+        <color name="accentSoft"    hex="EBEBEB"/>
+        <color name="accentStrong"  hex="B8C4CC"/>
+        <color name="success"       hex="3D6B4E"/>
+        <color name="warning"       hex="8B6020"/>
+    </colors>
+    <fonts>
+        <font family="system"/>
+    </fonts>
+</theme>

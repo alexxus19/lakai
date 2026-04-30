@@ -174,6 +174,8 @@ struct CrewInfo: Codable, Hashable {
     var producer: String = ""
     var client: String = ""
     var dop: String = ""
+    var location: String = ""
+    var props: String = ""
     var clientLogoFileName: String?
     var productionLogoFileName: String?
 }
@@ -286,31 +288,17 @@ struct ProjectDocument: Identifiable, Codable {
             sceneStartIndex = 0
         }
 
+        // Unified counter: all shots (optional and non-optional) share one position sequence.
         let sceneRange = shotlistItemOrder[sceneStartIndex...shotRefIndex]
+        let pos = sceneRange.filter { $0.kind == .shot }.count
 
-        if shot.isOptional {
-            let optPos = sceneRange.filter { ref in
-                guard ref.kind == .shot else { return false }
-                return shots.first(where: { $0.id == ref.id })?.isOptional == true
-            }.count
-            if hasDividers {
-                // Scene number = count of dividers strictly before this shot
-                let sceneNumber = shotlistItemOrder.prefix(shotRefIndex).filter { $0.kind == .sceneDivider }.count
-                return "\(sceneNumber)-OPT_\(optPos)"
-            } else {
-                return "OPT_\(optPos)"
-            }
+        let optSuffix = shot.isOptional ? "(opt)" : ""
+
+        if hasDividers {
+            let sceneNumber = shotlistItemOrder.prefix(shotRefIndex).filter { $0.kind == .sceneDivider }.count
+            return "\(sceneNumber)-\(pos)\(optSuffix)"
         } else {
-            let pos = sceneRange.filter { ref in
-                guard ref.kind == .shot else { return false }
-                return shots.first(where: { $0.id == ref.id })?.isOptional == false
-            }.count
-            if hasDividers {
-                let sceneNumber = shotlistItemOrder.prefix(shotRefIndex).filter { $0.kind == .sceneDivider }.count
-                return "\(sceneNumber)-\(pos)"
-            } else {
-                return String(pos)
-            }
+            return "\(pos)\(optSuffix)"
         }
     }
 

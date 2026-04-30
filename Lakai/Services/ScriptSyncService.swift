@@ -162,8 +162,8 @@ struct ScriptSyncService {
         return nil
     }
 
-    func attributedScript(_ text: String) -> NSAttributedString {
-        let attributed = NSMutableAttributedString(string: text, attributes: baseAttributes)
+    func attributedScript(_ text: String, theme: ThemeDefinition) -> NSAttributedString {
+        let attributed = NSMutableAttributedString(string: text, attributes: baseAttributes(theme: theme))
         let nsText = text as NSString
         let lines = text.components(separatedBy: .newlines)
         var location = 0
@@ -172,15 +172,15 @@ struct ScriptSyncService {
             let range = NSRange(location: location, length: line.count)
 
             if sceneHeaderTitle(from: line) != nil {
-                attributed.addAttributes(sceneHeaderAttributes, range: range)
+                attributed.addAttributes(sceneHeaderAttributes(theme: theme), range: range)
             } else if let descriptionLine = shotDescriptionLine(from: line) {
                 let matched = detectShotSize(in: descriptionLine)
                 let keyword = matched.keyword
                 if !keyword.isEmpty, let keywordRange = line.range(of: keyword, options: [.caseInsensitive]) {
                     let nsRange = NSRange(keywordRange, in: line)
-                    attributed.addAttributes(keywordAttributes, range: NSRange(location: location + nsRange.location, length: nsRange.length))
+                    attributed.addAttributes(keywordAttributes(theme: theme), range: NSRange(location: location + nsRange.location, length: nsRange.length))
                 }
-                attributed.addAttributes(shotLineAttributes, range: range)
+                attributed.addAttributes(shotLineAttributes(theme: theme), range: range)
             }
 
             location += nsText.substring(with: range).count + 1
@@ -287,31 +287,31 @@ struct ScriptSyncService {
         lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private var baseAttributes: [NSAttributedString.Key: Any] {
+    private func baseAttributes(theme: ThemeDefinition) -> [NSAttributedString.Key: Any] {
         [
             .font: NSFont.monospacedSystemFont(ofSize: 13, weight: .regular),
-            .foregroundColor: NSColor.white
+            .foregroundColor: theme.nsInk
         ]
     }
 
-    private var shotLineAttributes: [NSAttributedString.Key: Any] {
+    private func shotLineAttributes(theme: ThemeDefinition) -> [NSAttributedString.Key: Any] {
         [
             .font: NSFont.monospacedSystemFont(ofSize: 13, weight: .regular),
-            .foregroundColor: NSColor.white
+            .foregroundColor: theme.nsInk
         ]
     }
 
-    private var keywordAttributes: [NSAttributedString.Key: Any] {
+    private func keywordAttributes(theme: ThemeDefinition) -> [NSAttributedString.Key: Any] {
         [
             .font: NSFontManager.shared.convert(NSFont.monospacedSystemFont(ofSize: 13, weight: .regular), toHaveTrait: .italicFontMask),
-            .foregroundColor: NSColor.white.withAlphaComponent(0.72)
+            .foregroundColor: theme.nsInk.withAlphaComponent(0.72)
         ]
     }
 
-    private var sceneHeaderAttributes: [NSAttributedString.Key: Any] {
+    private func sceneHeaderAttributes(theme: ThemeDefinition) -> [NSAttributedString.Key: Any] {
         [
             .font: NSFont.monospacedSystemFont(ofSize: 14, weight: .bold),
-            .foregroundColor: NSColor.white.withAlphaComponent(0.55)
+            .foregroundColor: theme.nsMutedInk
         ]
     }
 }

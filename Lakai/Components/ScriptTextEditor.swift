@@ -4,6 +4,7 @@ import SwiftUI
 struct ScriptTextEditor: NSViewRepresentable {
     @Binding var text: String
     let scriptSync: ScriptSyncService
+    let theme: ThemeDefinition
 
     func makeCoordinator() -> Coordinator {
         Coordinator(text: $text, scriptSync: scriptSync)
@@ -11,7 +12,7 @@ struct ScriptTextEditor: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
-        scrollView.drawsBackground = false
+        scrollView.drawsBackground = true
         scrollView.hasVerticalScroller = true
         scrollView.borderType = .noBorder
 
@@ -26,11 +27,11 @@ struct ScriptTextEditor: NSViewRepresentable {
         textView.textContainer?.widthTracksTextView = true
         textView.isVerticallyResizable = true
         textView.isHorizontallyResizable = false
-        textView.textColor = .white
-        textView.insertionPointColor = .white
+        textView.textColor = theme.nsInk
+        textView.insertionPointColor = theme.nsInk
         textView.autoresizingMask = [.width]
         textView.delegate = context.coordinator
-        textView.textStorage?.setAttributedString(scriptSync.attributedScript(text))
+        textView.textStorage?.setAttributedString(scriptSync.attributedScript(text, theme: theme))
         context.coordinator.textView = textView
 
         scrollView.documentView = textView
@@ -42,8 +43,13 @@ struct ScriptTextEditor: NSViewRepresentable {
             return
         }
 
+        // Re-apply theme colors whenever theme changes
+        textView.textColor = theme.nsInk
+        textView.insertionPointColor = theme.nsInk
+        nsView.backgroundColor = NSColor(theme.panel)
+
         if textView.string != text {
-            context.coordinator.applyStyledText(text, to: textView, preserveSelection: false)
+            context.coordinator.applyStyledText(text, to: textView, preserveSelection: false, theme: theme)
         }
     }
 
@@ -66,13 +72,14 @@ struct ScriptTextEditor: NSViewRepresentable {
 
             let updatedText = textView.string
             text = updatedText
-            applyStyledText(updatedText, to: textView, preserveSelection: true)
+            let theme = ThemeManager.shared.current
+            applyStyledText(updatedText, to: textView, preserveSelection: true, theme: theme)
         }
 
-        func applyStyledText(_ text: String, to textView: NSTextView, preserveSelection: Bool) {
+        func applyStyledText(_ text: String, to textView: NSTextView, preserveSelection: Bool, theme: ThemeDefinition) {
             isApplyingUpdate = true
             let selectedRanges = preserveSelection ? textView.selectedRanges : []
-            textView.textStorage?.setAttributedString(scriptSync.attributedScript(text))
+            textView.textStorage?.setAttributedString(scriptSync.attributedScript(text, theme: theme))
             if preserveSelection {
                 textView.selectedRanges = selectedRanges
             }

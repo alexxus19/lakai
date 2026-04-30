@@ -10,21 +10,24 @@ struct SceneDividerView: View {
     let onTitleChange: (String) -> Void
     let onContextMenuRequest: (CGPoint) -> Void
 
+    @EnvironmentObject var themeManager: ThemeManager
+    private var theme: ThemeDefinition { themeManager.current }
+
     var body: some View {
         HStack(spacing: 10) {
             // Drag handle
             Image(systemName: "line.3.horizontal")
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(LakaiTheme.mutedInk)
+                .foregroundStyle(theme.mutedInk)
                 .frame(width: 18)
 
             // Scene badge
             Text("Szene \(sceneNumber)")
                 .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(LakaiTheme.ink)
+                .foregroundStyle(theme.ink)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
-                .background(LakaiTheme.accentStrong)
+                .background(theme.accentStrong)
                 .clipShape(Capsule())
 
             // Editable title
@@ -34,7 +37,7 @@ struct SceneDividerView: View {
             ))
             .textFieldStyle(.plain)
             .font(.system(size: 14, weight: .bold))
-            .foregroundStyle(LakaiTheme.ink)
+            .foregroundStyle(theme.ink)
 
             Spacer(minLength: 0)
         }
@@ -42,11 +45,11 @@ struct SceneDividerView: View {
         .padding(.vertical, 8)
         .background(
             ZStack {
-                LakaiTheme.accentSoft.opacity(0.55)
+                theme.accentSoft.opacity(0.55)
                 VStack {
                     Spacer()
                     Rectangle()
-                        .fill(LakaiTheme.panelBorder)
+                        .fill(theme.panelBorder)
                         .frame(height: 1)
                 }
             }
@@ -54,7 +57,7 @@ struct SceneDividerView: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(isDragged ? LakaiTheme.ink.opacity(0.9) : LakaiTheme.panelBorder.opacity(0.5), lineWidth: isDragged ? 2 : 1)
+                .stroke(isDragged ? theme.ink.opacity(0.9) : theme.panelBorder.opacity(0.5), lineWidth: isDragged ? 2 : 1)
         )
         .scaleEffect(isDragged ? 1.01 : 1)
         .overlay(
