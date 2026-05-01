@@ -62,6 +62,12 @@ struct WorkspaceView: View {
     @State private var castManagementOpenDayID: UUID? = nil
     @State private var castNameDraft = ""
     @State private var castColorDraftIndex = 0
+    @State private var scheduleLayerWindowOrigin: CGPoint = .zero
+    @State private var shotlistLayerWindowOrigin: CGPoint = .zero
+    @State private var selectedShotlistIDs: Set<UUID> = []
+    @State private var lastSelectedShotlistID: UUID?
+    @State private var selectedScheduleIDs: Set<UUID> = []
+    @State private var lastSelectedScheduleID: UUID?
 
     private let dropGapHeight: CGFloat = 20
 
@@ -253,7 +259,7 @@ struct WorkspaceView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        Text("Shotlist")
+                        Text("Storyboard")
                             .font(.system(size: 22, weight: .bold))
                             .foregroundStyle(theme.ink)
 
@@ -286,6 +292,7 @@ struct WorkspaceView: View {
                                         isDragged: draggedShotID == itemRef.id,
                                         onDelete: { appState.removeSceneDivider(itemRef.id) },
                                         onTitleChange: { appState.updateSceneDividerTitle(itemRef.id, title: $0) },
+                                        onNotesChange: { appState.updateSceneDividerNotes(itemRef.id, notes: $0) },
                                         onContextMenuRequest: { point in openDividerMenu(for: itemRef.id, localPoint: point) }
                                     )
                                     .background(
@@ -314,6 +321,10 @@ struct WorkspaceView: View {
                                             insertAfterTarget: true,
                                             onMove: { from, to in
                                                 appState.moveItemLive(in: .shotlist, from: from, to: to)
+                                            },
+                                            selectedIDs: selectedShotlistIDs,
+                                            onMoveMulti: { anchor in
+                                                appState.moveMultipleItemsLive(in: .shotlist, draggedID: draggedShotID ?? itemRef.id, selectedIDs: selectedShotlistIDs, toAfterID: anchor)
                                             }
                                         )
                                     )
@@ -354,7 +365,11 @@ struct WorkspaceView: View {
                                         ),
                                         onContextMenuRequest: { cardID, point in
                                             openShotCardMenu(for: cardID, localPoint: point)
-                                        }
+                                        },
+                                        onSelect: { isShift in
+                                            handleShotlistSelection(id: shot.id, isShift: isShift, project: project)
+                                        },
+                                        isSelected: false
                                     )
                                     .background(
                                         GeometryReader { proxy in
@@ -366,9 +381,9 @@ struct WorkspaceView: View {
                                         }
                                     )
                                     .opacity(shot.isOptional ? 0.3 : 1.0)
-                                    .scaleEffect(draggedShotID == shot.id ? 1.01 : 1)
-                                    .overlay(reorderCardOverlay(isDragged: draggedShotID == shot.id))
-                                    .zIndex(draggedShotID == shot.id ? 2 : 0)
+                                    .scaleEffect((draggedShotID == shot.id || (draggedShotID != nil && selectedShotlistIDs.count > 1 && selectedShotlistIDs.contains(shot.id))) ? 1.01 : 1)
+                                    .overlay(reorderCardOverlay(isDragged: draggedShotID == shot.id || (draggedShotID != nil && selectedShotlistIDs.count > 1 && selectedShotlistIDs.contains(shot.id))))
+                                    .zIndex((draggedShotID == shot.id || (draggedShotID != nil && selectedShotlistIDs.count > 1 && selectedShotlistIDs.contains(shot.id))) ? 2 : 0)
                                     .onDrag {
                                         draggedShotID = shot.id
                                         return NSItemProvider(object: shot.id.uuidString as NSString)
@@ -384,9 +399,22 @@ struct WorkspaceView: View {
                                             insertAfterTarget: true,
                                             onMove: { from, to in
                                                 appState.moveItemLive(in: .shotlist, from: from, to: to)
+                                            },
+                                            selectedIDs: selectedShotlistIDs,
+                                            onMoveMulti: { anchor in
+                                                appState.moveMultipleItemsLive(in: .shotlist, draggedID: draggedShotID ?? shot.id, selectedIDs: selectedShotlistIDs, toAfterID: anchor)
                                             }
                                         )
                                     )
+                                    .overlay {
+                                        let isMultiSelected = selectedShotlistIDs.count > 1 && selectedShotlistIDs.contains(shot.id)
+                                        if isMultiSelected {
+                                            RoundedRectangle(cornerRadius: 18)
+                                                .fill(theme.accent.opacity(0.08))
+                                            RoundedRectangle(cornerRadius: 18)
+                                                .strokeBorder(theme.accent, lineWidth: 2.5)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -420,6 +448,13 @@ struct WorkspaceView: View {
             }
         }
         .coordinateSpace(name: "shotlistContextLayer")
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { shotlistLayerWindowOrigin = geo.frame(in: .global).origin }
+                    .onChange(of: geo.frame(in: .global).origin) { _, newOrigin in shotlistLayerWindowOrigin = newOrigin }
+            }
+        )
         .onPreferenceChange(ShotCardFramePreferenceKey.self) { frames in
             shotCardFrames = frames
         }
@@ -444,21 +479,67 @@ struct WorkspaceView: View {
         NSApp.keyWindow?.makeFirstResponder(nil)
     }
 
+    private func handleShotlistSelection(id: UUID, isShift: Bool, project: ProjectDocument) {
+        if isShift {
+            // Shift+click: extend or start range.
+            let orderedIDs = project.shotlistItemOrder.map(\.id)
+            if let lastID = lastSelectedShotlistID,
+               let fromIdx = orderedIDs.firstIndex(of: lastID),
+               let toIdx = orderedIDs.firstIndex(of: id) {
+                let range = fromIdx <= toIdx ? fromIdx...toIdx : toIdx...fromIdx
+                // Start fresh range from anchor each time so the selection equals the range.
+                selectedShotlistIDs = Set(range.map { orderedIDs[$0] })
+            } else {
+                selectedShotlistIDs = [id]
+                lastSelectedShotlistID = id
+            }
+        } else {
+            // Plain click: clear selection entirely (drag still works without selection).
+            selectedShotlistIDs = []
+            lastSelectedShotlistID = id   // remember anchor for a potential next shift+click
+        }
+    }
+
+    private func handleScheduleSelection(id: UUID, isShift: Bool, project: ProjectDocument) {
+        if isShift {
+            let orderedIDs = project.orderedScheduleBlocks.map(\.id)
+            if let lastID = lastSelectedScheduleID,
+               let fromIdx = orderedIDs.firstIndex(of: lastID),
+               let toIdx = orderedIDs.firstIndex(of: id) {
+                let range = fromIdx <= toIdx ? fromIdx...toIdx : toIdx...fromIdx
+                selectedScheduleIDs = Set(range.map { orderedIDs[$0] })
+            } else {
+                selectedScheduleIDs = [id]
+                lastSelectedScheduleID = id
+            }
+        } else {
+            selectedScheduleIDs = []
+            lastSelectedScheduleID = id
+        }
+    }
+
+    private func windowPointToZStack(_ windowPoint: CGPoint, layerOrigin: CGPoint) -> CGPoint {
+        let contentHeight = NSApp.keyWindow?.contentView?.bounds.height ?? 0
+        let globalX = windowPoint.x
+        let globalY = contentHeight - windowPoint.y
+        return CGPoint(x: globalX - layerOrigin.x, y: globalY - layerOrigin.y)
+    }
+
     private func openShotCardMenu(for cardID: UUID, localPoint: CGPoint) {
-        guard let frame = shotCardFrames[cardID] else {
+        guard shotCardFrames[cardID] != nil else {
             return
         }
 
-        activeShotCardMenuPosition = CGPoint(x: frame.minX + localPoint.x, y: frame.minY + localPoint.y)
+        activeShotCardMenuPosition = windowPointToZStack(localPoint, layerOrigin: shotlistLayerWindowOrigin)
         activeShotCardMenuID = cardID
         isShotColorSectionExpanded = false
     }
 
     private func openDividerMenu(for dividerID: UUID, localPoint: CGPoint) {
-        guard let frame = sceneDividerFrames[dividerID] else {
+        guard sceneDividerFrames[dividerID] != nil else {
             return
         }
-        activeDividerMenuPosition = CGPoint(x: frame.minX + localPoint.x, y: frame.minY + localPoint.y)
+        activeDividerMenuPosition = windowPointToZStack(localPoint, layerOrigin: shotlistLayerWindowOrigin)
         activeDividerMenuID = dividerID
         closeShotCardMenu()
     }
@@ -489,8 +570,7 @@ struct WorkspaceView: View {
     }
 
     private func openScheduleCardMenu(blockID: UUID, localPoint: CGPoint) {
-        guard let frame = scheduleBlockFrames[blockID] else { return }
-        activeScheduleMenuPosition = CGPoint(x: frame.minX + localPoint.x, y: frame.minY + localPoint.y)
+        activeScheduleMenuPosition = windowPointToZStack(localPoint, layerOrigin: scheduleLayerWindowOrigin)
         activeScheduleMenuBlockID = blockID
         isScheduleColorSectionExpanded = false
     }
@@ -732,13 +812,18 @@ struct WorkspaceView: View {
 
                     Spacer()
 
-                    Button("Pause hinzufügen") {
-                        appState.addPauseBlock()
+                    Button {
+                        appState.addPauseBlock(title: "Pause")
+                    } label: {
+                        Text("Slot hinzufügen")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(theme.ink)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .tint(theme.accent)
-                    .foregroundStyle(theme.ink)
+                    .buttonStyle(.plain)
+                    .background(theme.accentStrong)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
 
                     Button("Drehtag hinzufügen") {
                         appState.addDayBlock()
@@ -812,6 +897,13 @@ struct WorkspaceView: View {
             }
         }
         .coordinateSpace(name: "scheduleContextLayer")
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { scheduleLayerWindowOrigin = geo.frame(in: .global).origin }
+                    .onChange(of: geo.frame(in: .global).origin) { _, newOrigin in scheduleLayerWindowOrigin = newOrigin }
+            }
+        )
         .onPreferenceChange(ScheduleBlockFramePreferenceKey.self) { frames in
             scheduleBlockFrames = frames
         }
@@ -828,6 +920,10 @@ struct WorkspaceView: View {
                     insertAfterTarget: false,
                     onMove: { from, to in
                         appState.moveItemLive(in: .schedule, from: from, to: to)
+                    },
+                    selectedIDs: selectedScheduleIDs,
+                    onMoveMulti: { anchor in
+                        appState.moveMultipleItemsLive(in: .schedule, draggedID: draggedScheduleBlockID ?? firstBlockID, selectedIDs: selectedScheduleIDs, toAfterID: anchor)
                     }
                 )
             )
@@ -1022,6 +1118,16 @@ struct WorkspaceView: View {
                             .font(.system(size: 11, weight: .medium))
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
+
+                        labeledField(title: "Location", text: Binding(
+                            get: { appState.activeProject?.shot(with: shot.id)?.location ?? "" },
+                            set: { appState.updateShotLocation(shot.id, text: $0) }
+                        ), width: 96)
+
+                        labeledField(title: "Props", text: Binding(
+                            get: { appState.activeProject?.shot(with: shot.id)?.props ?? "" },
+                            set: { appState.updateShotProps(shot.id, text: $0) }
+                        ), width: 96)
                     }
                 }
 
@@ -1033,11 +1139,20 @@ struct WorkspaceView: View {
             .overlay(RoundedRectangle(cornerRadius: 18).stroke(theme.panelBorder, lineWidth: 1))
         }
         .opacity(shot.isOptional ? 0.3 : 1.0)
-        .scaleEffect(draggedScheduleBlockID == entry.id ? 1.01 : 1)
-        .overlay(reorderCardOverlay(isDragged: draggedScheduleBlockID == entry.id))
+        .scaleEffect((draggedScheduleBlockID == entry.id || (draggedScheduleBlockID != nil && selectedScheduleIDs.count > 1 && selectedScheduleIDs.contains(block.id))) ? 1.01 : 1)
+        .overlay(reorderCardOverlay(isDragged: draggedScheduleBlockID == entry.id || (draggedScheduleBlockID != nil && selectedScheduleIDs.count > 1 && selectedScheduleIDs.contains(block.id))))
         .overlay {
             RightClickCaptureView { point in
                 openScheduleCardMenu(blockID: block.id, localPoint: point)
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            if let project {
+                CardTapCaptureView { isShift in
+                    handleScheduleSelection(id: block.id, isShift: isShift, project: project)
+                }
+                .frame(height: 36)
+                .padding(.leading, 94)
             }
         }
         .zIndex(draggedScheduleBlockID == entry.id ? 2 : 0)
@@ -1057,9 +1172,24 @@ struct WorkspaceView: View {
                 insertAfterTarget: true,
                 onMove: { from, to in
                     appState.moveItemLive(in: .schedule, from: from, to: to)
+                },
+                selectedIDs: selectedScheduleIDs,
+                onMoveMulti: { anchor in
+                    appState.moveMultipleItemsLive(in: .schedule, draggedID: draggedScheduleBlockID ?? entry.id, selectedIDs: selectedScheduleIDs, toAfterID: anchor)
                 }
             )
         )
+        .overlay {
+            let isMultiSelected = selectedScheduleIDs.count > 1 && selectedScheduleIDs.contains(block.id)
+            if isMultiSelected {
+                RoundedRectangle(cornerRadius: 18)
+                    .fill(theme.accent.opacity(0.08))
+                    .padding(.leading, 93)
+                RoundedRectangle(cornerRadius: 18)
+                    .strokeBorder(theme.accent, lineWidth: 2.5)
+                    .padding(.leading, 93)
+            }
+        }
     }
 
     private func scheduleTimeRail(for entry: CalculatedScheduleEntry) -> some View {
@@ -1271,9 +1401,14 @@ struct WorkspaceView: View {
                 Circle()
                     .fill(LakaiTheme.castColors[idx].color)
                     .frame(width: 18, height: 18)
-                    .overlay(Circle().stroke(Color.white, lineWidth: isSelected ? 2 : 0))
-                    .overlay(Circle().stroke(LakaiTheme.castColors[idx].color.opacity(0.4), lineWidth: isSelected ? 0 : 1))
+                    .padding(isSelected ? 2 : 0)
+                    .background(
+                        Circle()
+                            .strokeBorder(Color.white, lineWidth: isSelected ? 2 : 0)
+                            .frame(width: isSelected ? 24 : 18, height: isSelected ? 24 : 18)
+                    )
                     .scaleEffect(isSelected ? 1.15 : 1)
+                    .animation(.easeInOut(duration: 0.12), value: isSelected)
                     .onTapGesture { onSelect(idx) }
             }
         }
@@ -1284,25 +1419,30 @@ struct WorkspaceView: View {
             pauseTimeRail(for: entry)
 
             HStack(spacing: 12) {
-                Text("Pause")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(theme.ink)
+                // Type selector – replaces the static badge + free-text title field
+                Menu {
+                    ForEach(["Pause", "Umzug", "Umbau"], id: \.self) { slotType in
+                        Button(slotType) {
+                            appState.updatePauseTitle(block.id, text: slotType)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(block.title.isEmpty ? "Pause" : block.title)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(theme.ink)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(theme.mutedInk)
+                    }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
                     .background(theme.accentSoft)
                     .clipShape(Capsule())
-
-                TextField("Bezeichnung", text: Binding(
-                    get: { appState.activeProject?.scheduleBlock(with: block.id)?.title ?? "Pause" },
-                    set: { appState.updatePauseTitle(block.id, text: $0) }
-                ))
-                .textFieldStyle(.plain)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(theme.accentSoft)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .foregroundStyle(theme.ink)
-                .font(.system(size: 13, weight: .medium))
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Dauer")
@@ -1363,6 +1503,10 @@ struct WorkspaceView: View {
                 insertAfterTarget: true,
                 onMove: { from, to in
                     appState.moveItemLive(in: .schedule, from: from, to: to)
+                },
+                selectedIDs: selectedScheduleIDs,
+                onMoveMulti: { anchor in
+                    appState.moveMultipleItemsLive(in: .schedule, draggedID: draggedScheduleBlockID ?? block.id, selectedIDs: selectedScheduleIDs, toAfterID: anchor)
                 }
             )
         )
@@ -1534,6 +1678,10 @@ struct WorkspaceView: View {
                 insertAfterTarget: true,
                 onMove: { from, to in
                     appState.moveItemLive(in: .schedule, from: from, to: to)
+                },
+                selectedIDs: selectedScheduleIDs,
+                onMoveMulti: { anchor in
+                    appState.moveMultipleItemsLive(in: .schedule, draggedID: draggedScheduleBlockID ?? block.id, selectedIDs: selectedScheduleIDs, toAfterID: anchor)
                 }
             )
         )
@@ -1755,10 +1903,24 @@ private struct ReorderDropDelegate: DropDelegate {
     @Binding var draggedID: UUID?
     let insertAfterTarget: Bool
     let onMove: (Int, Int) -> Void
+    let selectedIDs: Set<UUID>
+    let onMoveMulti: (UUID) -> Void  // called with anchor (hovered) ID when multi-move
 
     func dropEntered(info: DropInfo) {
         guard let draggedID,
               draggedID != itemID else {
+            return
+        }
+
+        // Multi-select move: move all selected items as a group anchored at hovered target.
+        // Guard: skip if the hovered target is itself part of the selection — the anchor must
+        // survive the group-removal step in moveMultipleItems, otherwise the group gets
+        // appended to the end of the list.
+        if selectedIDs.count > 1 && selectedIDs.contains(draggedID) {
+            guard !selectedIDs.contains(itemID) else { return }
+            withAnimation(.interactiveSpring(response: 0.22, dampingFraction: 0.88)) {
+                onMoveMulti(itemID)
+            }
             return
         }
 

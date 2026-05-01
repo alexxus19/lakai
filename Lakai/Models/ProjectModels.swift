@@ -13,7 +13,7 @@ enum WorkspaceMode: String, CaseIterable, Identifiable {
         case .script:
             return "Skript"
         case .shotlist:
-            return "Shotlist"
+            return "Storyboard"
         case .schedule:
             return "Drehplan"
         }
@@ -145,6 +145,7 @@ struct ShotlistItemRef: Codable, Hashable {
 struct SceneDivider: Identifiable, Codable, Hashable {
     var id: UUID = UUID()
     var title: String = ""
+    var notes: String = ""
 }
 
 struct CastMember: Identifiable, Codable, Hashable {
@@ -174,8 +175,6 @@ struct CrewInfo: Codable, Hashable {
     var producer: String = ""
     var client: String = ""
     var dop: String = ""
-    var location: String = ""
-    var props: String = ""
     var clientLogoFileName: String?
     var productionLogoFileName: String?
 }
@@ -199,6 +198,8 @@ struct Shot: Identifiable, Codable, Hashable {
     var backgroundColor: String? = nil
     var castMemberIDs: [UUID] = []
     var autoMatchedCastIDs: [UUID] = []
+    var location: String = ""
+    var props: String = ""
 }
 
 struct ScheduleBlock: Identifiable, Codable, Hashable {
@@ -428,12 +429,12 @@ struct ProjectDocument: Identifiable, Codable {
         sceneDividers[index].title = title
     }
 
-    mutating func addPauseBlock() {
+    mutating func addPauseBlock(title: String = "Pause") {
         scheduleBlocks.append(
             ScheduleBlock(
                 kind: .pause,
                 shotID: nil,
-                title: "Pause",
+                title: title,
                 durationSeconds: 15 * 60,
                 scheduleNotes: ""
             )
@@ -514,6 +515,33 @@ struct ProjectDocument: Identifiable, Codable {
             let insertionIndex = sourceIndex < targetIndex ? targetIndex - 1 : targetIndex
             let item = scheduleBlocks.remove(at: sourceIndex)
             scheduleBlocks.insert(item, at: max(0, min(insertionIndex, scheduleBlocks.count)))
+        }
+    }
+
+    /// Move a group of selected items (keeping relative order) to just after `anchorID`.
+    mutating func moveMultipleItems(in mode: WorkspaceMode, draggedID: UUID, selectedIDs: Set<UUID>, anchorID: UUID) {
+        switch mode {
+        case .script:
+            return
+        case .shotlist:
+            // Extract selected items in current order, remove them from the list.
+            let group = shotlistItemOrder.filter { selectedIDs.contains($0.id) }
+            shotlistItemOrder.removeAll { selectedIDs.contains($0.id) }
+            // Find insertion point (after anchorID, which is now in the pruned list).
+            if let anchorIdx = shotlistItemOrder.firstIndex(where: { $0.id == anchorID }) {
+                shotlistItemOrder.insert(contentsOf: group, at: anchorIdx + 1)
+            } else {
+                // Anchor was part of the group or not found — append at end.
+                shotlistItemOrder.append(contentsOf: group)
+            }
+        case .schedule:
+            let group = scheduleBlocks.filter { selectedIDs.contains($0.id) }
+            scheduleBlocks.removeAll { selectedIDs.contains($0.id) }
+            if let anchorIdx = scheduleBlocks.firstIndex(where: { $0.id == anchorID }) {
+                scheduleBlocks.insert(contentsOf: group, at: anchorIdx + 1)
+            } else {
+                scheduleBlocks.append(contentsOf: group)
+            }
         }
     }
 }

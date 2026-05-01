@@ -98,7 +98,7 @@ struct PDFExportService {
             let castNames: String = {
                 guard let shot = entry.shot else { return "" }
                 let memberLookup = Dictionary(uniqueKeysWithValues: project.castMembers.map { ($0.id, $0.name) })
-                return shot.castMemberIDs.compactMap { memberLookup[$0] }.joined(separator: ", ")
+                return shot.castMemberIDs.compactMap { memberLookup[$0] }.joined(separator: "\n")
             }()
             return ScheduleTableRow(
                 rowKind: isPause ? .pause : .shot,
@@ -111,6 +111,8 @@ struct PDFExportService {
                 shotNotes: entry.shot?.notes ?? "",
                 scheduleNotes: entry.block.scheduleNotes,
                 castNames: castNames,
+                location: entry.shot?.location ?? "",
+                props: entry.shot?.props ?? "",
                 imageFileName: entry.shot?.imageFileName,
                 backgroundColor: isPause ? entry.block.backgroundColor : (isOptional ? "F3F3F3" : entry.shot?.backgroundColor)
             )
@@ -244,7 +246,7 @@ struct PDFExportService {
                 activeProjectURL: activeProjectURL,
                 persistence: persistence
             )
-            currentY = drawTableHeader(context: context, columns: columns, metrics: metrics, baselineY: currentY)
+            currentY = drawTableHeader(context: context, columns: columns, metrics: metrics, baselineY: currentY, columnFont: metrics.scheduleBoldFont)
         }
 
         beginNewPage()
@@ -319,35 +321,35 @@ struct PDFExportService {
         let bUnitSuffix = isBUnit ? " (B-Unit)" : ""
 
         let textWidth = max(metrics.tableWidth - logoReserveWidth - 8, 260)
-        let titleRect = CGRect(x: metrics.marginLeft, y: y - 26, width: textWidth, height: 26)
-        drawWrappedText("\(project.title) - Drehplan", in: titleRect, context: context, font: metrics.headerFont, alignment: .left)
-        y -= 28
+        let titleRect = CGRect(x: metrics.marginLeft, y: y - 20, width: textWidth, height: 20)
+        drawWrappedText("\(project.title) - Drehplan", in: titleRect, context: context, font: metrics.scheduleHeaderFont, alignment: .left)
+        y -= 22
 
         let infoLines = [
             "Version v\(project.scheduleVersion) | Export: \(LakaiFormatters.exportDate.string(from: Date()))",
             "Drehtag: \(LakaiFormatters.shootDate.string(from: displayDate))\(bUnitSuffix) | Start: \(LakaiFormatters.timeString(from: displayStartMinutes * 60))",
             "Regie: \(project.crewInfo.director) | 1st AD: \(project.crewInfo.firstAD) | Producer: \(project.crewInfo.producer)",
-            "DoP: \(project.crewInfo.dop) | Kunde: \(project.crewInfo.client)",
-            "Location: \(project.crewInfo.location) | Props: \(project.crewInfo.props)"
+            "DoP: \(project.crewInfo.dop) | Kunde: \(project.crewInfo.client)"
         ]
 
         for line in infoLines {
-            let lineRect = CGRect(x: metrics.marginLeft, y: y - 12, width: textWidth, height: 12)
-            drawWrappedText(line, in: lineRect, context: context, font: metrics.metaFont, alignment: .left)
-            y -= 14
+            let lineRect = CGRect(x: metrics.marginLeft, y: y - 10, width: textWidth, height: 10)
+            drawWrappedText(line, in: lineRect, context: context, font: metrics.scheduleMetaFont, alignment: .left)
+            y -= 12
         }
 
         y -= 4
         return y
     }
 
-    private func drawTableHeader(context: CGContext, columns: [PDFColumn], metrics: PDFPageMetrics, baselineY: CGFloat) -> CGFloat {
+    private func drawTableHeader(context: CGContext, columns: [PDFColumn], metrics: PDFPageMetrics, baselineY: CGFloat, columnFont: NSFont? = nil) -> CGFloat {
         let rect = CGRect(x: metrics.marginLeft, y: baselineY - metrics.headerRowHeight, width: metrics.tableWidth, height: metrics.headerRowHeight)
         context.setFillColor(NSColor(white: 0.94, alpha: 1).cgColor)
         context.fill(rect)
 
         drawGrid(context: context, columns: columns, rowRect: rect, strokeColor: NSColor(white: 0.65, alpha: 1))
 
+        let usedFont = columnFont ?? metrics.boldFont
         var x = metrics.marginLeft
         for column in columns {
             let textRect = CGRect(
@@ -356,7 +358,7 @@ struct PDFExportService {
                 width: column.width - (metrics.cellHorizontalPadding * 2),
                 height: rect.height - 6
             )
-            drawWrappedText(column.title, in: textRect, context: context, font: metrics.boldFont, alignment: column.alignment)
+            drawWrappedText(column.title, in: textRect, context: context, font: usedFont, alignment: column.alignment)
             x += column.width
         }
 
@@ -380,14 +382,18 @@ struct PDFExportService {
         let descriptionColumn = columns.first(where: { $0.key == .description })?.width ?? 0
         let shotNotesColumn = columns.first(where: { $0.key == .shotNotes })?.width ?? 0
         let scheduleNotesColumn = columns.first(where: { $0.key == .scheduleNotes })?.width ?? 0
+        let locationColumn = columns.first(where: { $0.key == .location })?.width ?? 0
+        let propsColumn = columns.first(where: { $0.key == .props })?.width ?? 0
         let imageColumn = columns.first(where: { $0.key == .image })?.width ?? 0
 
         let descriptionHeight = measuredTextHeight(row.description, width: descriptionColumn - (metrics.cellHorizontalPadding * 2), font: metrics.scheduleBodyFont)
         let shotNotesHeight = measuredTextHeight(row.shotNotes, width: shotNotesColumn - (metrics.cellHorizontalPadding * 2), font: metrics.scheduleBodyFont)
         let scheduleNotesHeight = measuredTextHeight(row.scheduleNotes, width: scheduleNotesColumn - (metrics.cellHorizontalPadding * 2), font: metrics.scheduleBodyFont)
+        let locationHeight = measuredTextHeight(row.location, width: locationColumn - (metrics.cellHorizontalPadding * 2), font: metrics.scheduleBodyFont)
+        let propsHeight = measuredTextHeight(row.props, width: propsColumn - (metrics.cellHorizontalPadding * 2), font: metrics.scheduleBodyFont)
         let imageHeight = max(0, (imageColumn - (metrics.cellHorizontalPadding * 2)) * 9 / 16)
 
-        let contentHeight = max(max(descriptionHeight, shotNotesHeight), max(scheduleNotesHeight, imageHeight))
+        let contentHeight = [descriptionHeight, shotNotesHeight, scheduleNotesHeight, locationHeight, propsHeight, imageHeight].max() ?? 0
         return max(metrics.minimumScheduleRowHeight, contentHeight + (metrics.cellVerticalPadding * 2))
     }
 
@@ -520,6 +526,10 @@ struct PDFExportService {
                 drawWrappedText(row.shotNotes, in: contentRect, context: context, font: metrics.scheduleBodyFont, alignment: .left)
             case .scheduleNotes:
                 drawWrappedText(row.scheduleNotes, in: contentRect, context: context, font: metrics.scheduleBodyFont, alignment: .left)
+            case .location:
+                drawWrappedText(row.location, in: contentRect, context: context, font: metrics.scheduleBodyFont, alignment: .left)
+            case .props:
+                drawWrappedText(row.props, in: contentRect, context: context, font: metrics.scheduleBodyFont, alignment: .left)
             case .notes:
                 break
             case .image:
@@ -537,12 +547,11 @@ struct PDFExportService {
 
     private func drawPageNumber(context: CGContext, pageNumber: Int, metrics: PDFPageMetrics, mediaBox: CGRect) {
         let label = "Seite \(pageNumber)"
-        let textHeight: CGFloat = 10
         let textRect = CGRect(
             x: mediaBox.minX + metrics.marginLeft,
-            y: mediaBox.minY + (metrics.marginBottom - textHeight) / 2,
+            y: mediaBox.minY + 6,
             width: mediaBox.width - metrics.marginLeft - metrics.marginRight,
-            height: textHeight
+            height: 16
         )
         drawWrappedText(label, in: textRect, context: context, font: metrics.metaFont, alignment: .center)
     }
@@ -775,18 +784,20 @@ struct PDFExportService {
     }
 
     private func scheduleColumns(for metrics: PDFPageMetrics) -> [PDFColumn] {
-        // Fixed-width columns — values chosen to be as compact as their content allows.
-        let shotW: CGFloat = 44
-        let setupW: CGFloat = 36
+        // Fixed-width columns — values chosen to be as compact as their content allows at 6pt scheduleBodyFont.
+        let shotW: CGFloat = 35       // Shot nr (20% narrower)
+        let setupW: CGFloat = 42      // Wide enough for "Setup" header at scheduleBoldFont
         let startW: CGFloat = 36
         let endeW: CGFloat = 36
-        let groesseW: CGFloat = 56
-        let castW: CGFloat = 72
-        let shotNotesW: CGFloat = 96
-        let planNotesW: CGFloat = 96
-        let bildW: CGFloat = 94
+        let groesseW: CGFloat = 62    // Wide enough for "Amerikanisch" without wrapping
+        let castW: CGFloat = 55       // Names stacked vertically
+        let locationW: CGFloat = 60
+        let propsW: CGFloat = 60
+        let shotNotesW: CGFloat = 88
+        let planNotesW: CGFloat = 88
+        let bildW: CGFloat = 82
         // Beschreibung gets all remaining space.
-        let beschreibungW = metrics.tableWidth - shotW - setupW - startW - endeW - groesseW - castW - shotNotesW - planNotesW - bildW
+        let beschreibungW = metrics.tableWidth - shotW - setupW - startW - endeW - groesseW - castW - locationW - propsW - shotNotesW - planNotesW - bildW
         return [
             PDFColumn(title: "Shot", key: .shotNumber, width: shotW, alignment: .center),
             PDFColumn(title: "Setup", key: .setupStart, width: setupW, alignment: .center),
@@ -794,6 +805,8 @@ struct PDFExportService {
             PDFColumn(title: "Ende", key: .shootEnd, width: endeW, alignment: .center),
             PDFColumn(title: "Groesse", key: .size, width: groesseW, alignment: .left),
             PDFColumn(title: "Cast", key: .cast, width: castW, alignment: .left),
+            PDFColumn(title: "Location", key: .location, width: locationW, alignment: .left),
+            PDFColumn(title: "Props", key: .props, width: propsW, alignment: .left),
             PDFColumn(title: "Beschreibung", key: .description, width: beschreibungW, alignment: .left),
             PDFColumn(title: "Shot-Notizen", key: .shotNotes, width: shotNotesW, alignment: .left),
             PDFColumn(title: "Plan-Notizen", key: .scheduleNotes, width: planNotesW, alignment: .left),
@@ -818,8 +831,11 @@ private struct PDFPageMetrics {
     let boldFont = NSFont.boldSystemFont(ofSize: 9)
     let metaFont = NSFont.systemFont(ofSize: 9, weight: .regular)
     let bodyFont = NSFont.systemFont(ofSize: 8.5, weight: .regular)
-    // Schedule table uses a smaller body font (-20%) for higher information density.
-    let scheduleBodyFont = NSFont.systemFont(ofSize: 7, weight: .regular)
+    // Schedule-specific fonts: all 20% smaller than their storyboard counterparts.
+    let scheduleHeaderFont = NSFont.boldSystemFont(ofSize: 14)
+    let scheduleBoldFont = NSFont.boldSystemFont(ofSize: 7)
+    let scheduleMetaFont = NSFont.systemFont(ofSize: 7, weight: .regular)
+    let scheduleBodyFont = NSFont.systemFont(ofSize: 6, weight: .regular)
 
     init(pageSize: CGSize) {
         self.pageWidth = pageSize.width
@@ -849,6 +865,8 @@ private enum PDFColumnKey {
     case notes
     case shotNotes
     case scheduleNotes
+    case location
+    case props
     case image
 }
 
@@ -876,6 +894,8 @@ private struct ScheduleTableRow {
     let shotNotes: String
     let scheduleNotes: String
     let castNames: String
+    let location: String
+    let props: String
     let imageFileName: String?
     let backgroundColor: String?
     // Day header metadata (only used when rowKind == .dayHeader)
@@ -883,7 +903,7 @@ private struct ScheduleTableRow {
     let dayStartMinutes: Int
     let isBUnit: Bool
 
-    init(rowKind: ScheduleTableRowKind, shotLabel: String, size: String, setupStart: String, shootStart: String, shootEnd: String, description: String, shotNotes: String, scheduleNotes: String, castNames: String = "", imageFileName: String?, backgroundColor: String?, dayDate: Date? = nil, dayStartMinutes: Int = 0, isBUnit: Bool = false) {
+    init(rowKind: ScheduleTableRowKind, shotLabel: String, size: String, setupStart: String, shootStart: String, shootEnd: String, description: String, shotNotes: String, scheduleNotes: String, castNames: String = "", location: String = "", props: String = "", imageFileName: String?, backgroundColor: String?, dayDate: Date? = nil, dayStartMinutes: Int = 0, isBUnit: Bool = false) {
         self.rowKind = rowKind
         self.shotLabel = shotLabel
         self.size = size
@@ -894,6 +914,8 @@ private struct ScheduleTableRow {
         self.shotNotes = shotNotes
         self.scheduleNotes = scheduleNotes
         self.castNames = castNames
+        self.location = location
+        self.props = props
         self.imageFileName = imageFileName
         self.backgroundColor = backgroundColor
         self.dayDate = dayDate

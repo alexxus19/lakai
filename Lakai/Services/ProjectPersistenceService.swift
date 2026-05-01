@@ -125,7 +125,7 @@ struct ProjectPersistenceService {
             project.sceneDividers = dividersElement.elements(forName: "divider").compactMap { el in
                 guard let idStr = el.attribute(forName: "id")?.stringValue,
                       let id = UUID(uuidString: idStr) else { return nil }
-                return SceneDivider(id: id, title: el.childText(for: "title") ?? "")
+                return SceneDivider(id: id, title: el.childText(for: "title") ?? "", notes: el.childText(for: "notes") ?? "")
             }
         }
 
@@ -266,6 +266,7 @@ struct ProjectPersistenceService {
                 el.addAttribute(attr)
             }
             el.addChild(XMLElement(name: "title", stringValue: divider.title))
+            el.addChild(XMLElement(name: "notes", stringValue: divider.notes))
             sceneDividers.addChild(el)
         }
         root.addChild(sceneDividers)

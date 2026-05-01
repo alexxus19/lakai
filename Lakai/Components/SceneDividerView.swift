@@ -8,41 +8,57 @@ struct SceneDividerView: View {
     let isDragged: Bool
     let onDelete: () -> Void
     let onTitleChange: (String) -> Void
+    let onNotesChange: (String) -> Void
     let onContextMenuRequest: (CGPoint) -> Void
 
     @EnvironmentObject var themeManager: ThemeManager
     private var theme: ThemeDefinition { themeManager.current }
 
     var body: some View {
-        HStack(spacing: 10) {
-            // Drag handle
-            Image(systemName: "line.3.horizontal")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(theme.mutedInk)
-                .frame(width: 18)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                // Drag handle
+                Image(systemName: "line.3.horizontal")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(theme.mutedInk)
+                    .frame(width: 18)
 
-            // Scene badge
-            Text("Szene \(sceneNumber)")
-                .font(.system(size: 11, weight: .bold))
+                // Scene badge
+                Text("Szene \(sceneNumber)")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(theme.ink)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(theme.accentStrong)
+                    .clipShape(Capsule())
+
+                // Editable title
+                TextField("Szenenbeschreibung", text: Binding(
+                    get: { divider.title },
+                    set: { onTitleChange($0) }
+                ))
+                .textFieldStyle(.plain)
+                .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(theme.ink)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(theme.accentStrong)
-                .clipShape(Capsule())
 
-            // Editable title
-            TextField("Szenenbeschreibung", text: Binding(
-                get: { divider.title },
-                set: { onTitleChange($0) }
+                Spacer(minLength: 0)
+            }
+
+            TextEditor(text: Binding(
+                get: { divider.notes },
+                set: { onNotesChange($0) }
             ))
-            .textFieldStyle(.plain)
-            .font(.system(size: 14, weight: .bold))
+            .font(.system(size: 12, weight: .regular))
             .foregroundStyle(theme.ink)
-
-            Spacer(minLength: 0)
+            .scrollContentBackground(.hidden)
+            .padding(6)
+            .frame(minHeight: 52)
+            .background(theme.accentSoft.opacity(0.6))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.panelBorder.opacity(0.5), lineWidth: 1))
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.vertical, 10)
         .background(
             ZStack {
                 theme.accentSoft.opacity(0.55)

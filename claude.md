@@ -167,6 +167,15 @@ Lakai is a native macOS directing tool for creating, organizing, versioning, and
 
 ## Recent Changes (Session log)
 
+### Mode Rename, Card Layout & Schedule Fields (Current Pass)
+- Mode switch label "Shotlist" renamed to "Storyboard" (`WorkspaceMode.shotlist.title`)
+- Storyboard section heading in `shotlistView` also updated to "Storyboard"
+- In Storyboard (shotlist) mode shot cards: description field now grows vertically (`maxHeight: .infinity`) and the VStack is capped at 130pt (matching the image panel height) so the notes/comments field bottom aligns flush with the bottom of the storyboard image frame
+- Schedule mode shot-card layout unchanged
+- Two new editable fields added to the schedule card bottom row (same HStack as Setup/Dauer/Notizen): `Location` (96pt) and `Props` (96pt), right-aligned after the Notizen field
+- `location` and `props` are existing properties on `Shot` model (already persisted in XML)
+- `updateShotLocation` and `updateShotProps` added to `AppState` (plain string mutation, no script sync)
+
 ### PDF Export Pipeline Reconstruction
 - Replaced NSHostingView+NSGraphicsContext bitmap approach with SwiftUI `ImageRenderer` API
 - Reason: Previous approach generated blank pages, upside-down content, and failed image embedding
@@ -242,7 +251,19 @@ Lakai is a native macOS directing tool for creating, organizing, versioning, and
 - Drag state is reset robustly on mouse-up to avoid cards remaining in a stale dragged visual state after cancelled/outside drops
 - Section headers and shot size selector controls were hardened to explicit high-contrast light text on dark surfaces
 
-### Live Reorder Interaction (Current Pass)
+### Multi-Select & Slot Button (Current Pass)
+- Shift+click selects a range of cards in both Storyboard and Schedule views; plain click collapses to single selection
+- `CardTapCaptureView` (NSViewRepresentable) captures plain and Shift+left-click on card background; replaces `onTapGesture` in `ShotCardView`
+- `ShotCardView` gained two new parameters: `onSelect: ((Bool) -> Void)?` and `isSelected: Bool`
+- Selected cards show a white 2pt stroke border overlay (`RoundedRectangle(cornerRadius:18).stroke(...)`)
+- `handleShotlistSelection` / `handleScheduleSelection` in `WorkspaceView` manage range selection using `lastSelectedShotlistID` / `lastSelectedScheduleID` anchor
+- Multi-item drag: `ReorderDropDelegate` now accepts `selectedIDs: Set<UUID>` and `onMoveMulti: (UUID) -> Void`; when dragging a card that's in the selection set, all selected items move together anchored at the hovered target
+- `ProjectDocument.moveMultipleItems(in:draggedID:selectedIDs:anchorID:)` reorders a group by extracting selected items then reinserting after `anchorID`
+- `AppState.moveMultipleItemsLive` mirrors single-item live move but delegates to `moveMultipleItems`
+- "Slot hinzufügen" split button with dropdown (Pause/Umzug/Umbau) fully implemented; pause card badge shows `block.title` dynamically
+- Schedule context menu: position fix deferred; current behaviour matches shotlist pattern
+
+
 - Reordering now commits live on hover while dragging, so list order updates continuously before drop
 - The dragged card is the only highlighted element; secondary target-card highlighting was removed
 - Drop finalization now only clears drag state (no extra reorder on drop), preventing duplicate movement at release
@@ -371,7 +392,14 @@ Lakai is a native macOS directing tool for creating, organizing, versioning, and
 - Projects can be saved as folders and exchanged as ZIP files.
 - Cast members can be managed per drehtag and displayed on schedule shot cards.
 
-### Cast Management (Current Pass)
+### Schedule View Bug Fixes (Current Pass)
+- **Cast color picker selection ring**: Changed from `overlay(Circle().stroke(Color.white))` to a `padding + background strokeBorder` approach so the selection ring appears outside the color circle rather than being clipped at its edge; added `animation(.easeInOut)` for smooth transitions
+- **Cast chip toggle fix**: `CardTapCaptureView` in schedule shot cards was covering the entire card area (minus time rail), intercepting clicks on SwiftUI plain-Button cast chips that don't create `NSControl` backing detectable by `windowTreeContainsInteractiveView`; fixed by limiting `CardTapCaptureView` to only the top 36pt header row (shot number + size tag area), leaving the chips row and all other interactive card content fully clickable
+- **Multi-select drag fix**: `handleShotlistSelection` and `handleScheduleSelection` now only clear `selectedXxxIDs` when the clicked card is NOT already in the selection; clicking an already-selected card preserves the full selection so dragging the group still works correctly
+- **Multi-select drag anchor bug fix**: `ReorderDropDelegate.dropEntered` now guards against the hover target being part of the selection group; previously hovering over another selected card (not the dragged card) used it as anchor, then couldn't find it after removing the group, causing all selected cards to be appended to the end of the list
+- **Schedule context menu position fix**: `RightClickCaptureView.rightMouseDown` now passes `event.locationInWindow` (window coordinates) instead of view-local coordinates; `openShotCardMenu`, `openDividerMenu`, and `openScheduleCardMenu` now use a shared `windowPointToZStack(_:layerOrigin:)` helper that converts AppKit window coordinates (bottom-up) to SwiftUI top-left coordinates and subtracts the ZStack layer's global origin; `shotlistLayerWindowOrigin` and `scheduleLayerWindowOrigin` are now populated via `GeometryReader(.global)` background on the respective ZStack layers — this fixes menu appearing displaced when the list is scrolled
+
+
 - Each Drehtag divider (TAG 1 / Setup card + every additional TAG) carries a "Cast" button on the right side
 - Clicking opens a per-drehtag `castManagementPanel` popover scoped to that day's cast members
 - `CastMember` model: `id`, `name`, `colorHex`, `dayBlockID` (which drehtag it belongs to), `showInAllDays` (visibility flag)

@@ -18,6 +18,8 @@ final class AppState: ObservableObject {
     private let scriptSync = ScriptSyncService()
     private var hasPendingReorderChanges = false
     private var pendingReorderMode: WorkspaceMode?
+    private var preReorderShotlistItemOrder: [ShotlistItemRef]?
+    private var preReorderScheduleBlocks: [ScheduleBlock]?
     private let lakArchiveType = UTType("com.lakai.archive") ?? .zip
 
     init() {
@@ -111,9 +113,17 @@ final class AppState: ObservableObject {
         }
     }
 
-    func addPauseBlock() {
+    func updateSceneDividerNotes(_ id: UUID, notes: String) {
+        mutateProject(syncScriptFromShots: false) { project in
+            if let idx = project.sceneDividers.firstIndex(where: { $0.id == id }) {
+                project.sceneDividers[idx].notes = notes
+            }
+        }
+    }
+
+    func addPauseBlock(title: String = "Pause") {
         mutateProject(animated: true) { project in
-            project.addPauseBlock()
+            project.addPauseBlock(title: title)
         }
     }
 
@@ -142,12 +152,26 @@ final class AppState: ObservableObject {
     }
 
     func moveItemLive(in mode: WorkspaceMode, from sourceIndex: Int, to destinationIndex: Int) {
-        guard var project = activeProject else {
-            return
+        guard var project = activeProject else { return }
+        if !hasPendingReorderChanges {
+            preReorderShotlistItemOrder = project.shotlistItemOrder
+            preReorderScheduleBlocks = project.scheduleBlocks
         }
-
         project.moveItem(from: sourceIndex, to: destinationIndex, in: mode)
+        activeProject = project
+        hasPendingReorderChanges = true
+        pendingReorderMode = mode
+    }
 
+    /// Move a set of items as a group. Items in `selectedIDs` are extracted, maintaining their relative order,
+    /// and reinserted at the position indicated by `anchorID` (the item currently being hovered).
+    func moveMultipleItemsLive(in mode: WorkspaceMode, draggedID: UUID, selectedIDs: Set<UUID>, toAfterID anchorID: UUID) {
+        guard var project = activeProject else { return }
+        if !hasPendingReorderChanges {
+            preReorderShotlistItemOrder = project.shotlistItemOrder
+            preReorderScheduleBlocks = project.scheduleBlocks
+        }
+        project.moveMultipleItems(in: mode, draggedID: draggedID, selectedIDs: selectedIDs, anchorID: anchorID)
         activeProject = project
         hasPendingReorderChanges = true
         pendingReorderMode = mode
@@ -172,6 +196,10 @@ final class AppState: ObservableObject {
         project.updatedAt = Date()
         project.syncOrders()
 
+        let capturedShotlistOrder = preReorderShotlistItemOrder
+        let capturedScheduleBlocks = preReorderScheduleBlocks
+        let capturedMode = pendingReorderMode
+
         do {
             let resolvedProjectURL = try persistence.renameProjectFolderIfNeeded(currentFolderURL: activeProjectURL, projectTitle: project.title)
             try persistence.saveProject(project, to: resolvedProjectURL)
@@ -180,9 +208,50 @@ final class AppState: ObservableObject {
             refreshLibrary()
             hasPendingReorderChanges = false
             pendingReorderMode = nil
+            preReorderShotlistItemOrder = nil
+            preReorderScheduleBlocks = nil
         } catch {
             presentError(error)
+            return
         }
+
+        NSApp.keyWindow?.undoManager?.registerUndo(withTarget: self) { target in
+            target.undoReorder(shotlistOrder: capturedShotlistOrder, scheduleBlocks: capturedScheduleBlocks, mode: capturedMode)
+        }
+        NSApp.keyWindow?.undoManager?.setActionName("Reihenfolge ändern")
+    }
+
+    func undoReorder(shotlistOrder: [ShotlistItemRef]?, scheduleBlocks: [ScheduleBlock]?, mode: WorkspaceMode?) {
+        guard var project = activeProject, let activeProjectURL else { return }
+
+        // Capture current state for redo
+        let redoShotlistOrder = project.shotlistItemOrder
+        let redoScheduleBlocks = project.scheduleBlocks
+
+        if let shotlistOrder { project.shotlistItemOrder = shotlistOrder }
+        if let scheduleBlocks { project.scheduleBlocks = scheduleBlocks }
+
+        if mode == .shotlist {
+            project.scriptText = scriptSync.composeScript(from: project)
+        }
+        project.updatedAt = Date()
+        project.syncOrders()
+
+        do {
+            let resolvedURL = try persistence.renameProjectFolderIfNeeded(currentFolderURL: activeProjectURL, projectTitle: project.title)
+            try persistence.saveProject(project, to: resolvedURL)
+            self.activeProjectURL = resolvedURL
+            activeProject = project
+            refreshLibrary()
+        } catch {
+            presentError(error)
+            return
+        }
+
+        NSApp.keyWindow?.undoManager?.registerUndo(withTarget: self) { target in
+            target.undoReorder(shotlistOrder: redoShotlistOrder, scheduleBlocks: redoScheduleBlocks, mode: mode)
+        }
+        NSApp.keyWindow?.undoManager?.setActionName("Reihenfolge ändern")
     }
 
     func updateShotSize(_ id: UUID, size: ShotSize) {
@@ -242,6 +311,18 @@ final class AppState: ObservableObject {
     func updateScheduleNotes(_ id: UUID, text: String) {
         mutateProject(syncScriptFromShots: false) { project in
             project.updateScheduleBlock(id: id) { $0.scheduleNotes = text }
+        }
+    }
+
+    func updateShotLocation(_ id: UUID, text: String) {
+        mutateProject(syncScriptFromShots: false) { project in
+            project.updateShot(id: id) { $0.location = text }
+        }
+    }
+
+    func updateShotProps(_ id: UUID, text: String) {
+        mutateProject(syncScriptFromShots: false) { project in
+            project.updateShot(id: id) { $0.props = text }
         }
     }
 

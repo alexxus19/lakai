@@ -17,12 +17,14 @@ struct ScriptSyncService {
         // A parsed item is either a shot entry or a scene header.
         enum ParsedItem {
             case shot(description: String, notes: String)
-            case scene(title: String)
+            case scene(title: String, notes: String)
         }
 
         var parsedItems: [ParsedItem] = []
         var currentDescription: String?
         var currentNotes: [String] = []
+        var pendingSceneTitle: String?
+        var pendingSceneNotes: [String] = []
         var hasStartedContent = false
 
         for line in lines {
@@ -34,13 +36,25 @@ struct ScriptSyncService {
                     currentDescription = nil
                     currentNotes = []
                 }
-                parsedItems.append(.scene(title: sceneTitle))
+                // Flush any pending scene (with empty notes — notes come next).
+                if let pendingTitle = pendingSceneTitle {
+                    parsedItems.append(.scene(title: pendingTitle, notes: collapseNotes(pendingSceneNotes)))
+                }
+                pendingSceneTitle = sceneTitle
+                pendingSceneNotes = []
                 hasStartedContent = true
                 continue
             }
 
             if let descriptionLine = shotDescriptionLine(from: line) {
                 hasStartedContent = true
+
+                // Flush pending scene (its notes are the lines up to this shot marker).
+                if let pendingTitle = pendingSceneTitle {
+                    parsedItems.append(.scene(title: pendingTitle, notes: collapseNotes(pendingSceneNotes)))
+                    pendingSceneTitle = nil
+                    pendingSceneNotes = []
+                }
 
                 if let desc = currentDescription {
                     parsedItems.append(.shot(description: desc, notes: collapseNotes(currentNotes)))
@@ -51,6 +65,15 @@ struct ScriptSyncService {
                 continue
             }
 
+            if let pendingTitle = pendingSceneTitle, currentDescription == nil {
+                // Collecting scene notes (lines between the heading and first shot).
+                _ = pendingTitle
+                if hasStartedContent {
+                    pendingSceneNotes.append(line)
+                }
+                continue
+            }
+
             guard hasStartedContent, currentDescription != nil else {
                 continue
             }
@@ -58,6 +81,10 @@ struct ScriptSyncService {
             currentNotes.append(line)
         }
 
+        // Flush remaining items.
+        if let pendingTitle = pendingSceneTitle {
+            parsedItems.append(.scene(title: pendingTitle, notes: collapseNotes(pendingSceneNotes)))
+        }
         if let desc = currentDescription {
             parsedItems.append(.shot(description: desc, notes: collapseNotes(currentNotes)))
         }
@@ -72,8 +99,8 @@ struct ScriptSyncService {
 
         for item in parsedItems {
             switch item {
-            case .scene(let title):
-                let divider = SceneDivider(title: title)
+            case .scene(let title, let notes):
+                let divider = SceneDivider(title: title, notes: notes)
                 sceneDividers.append(divider)
                 shotlistItemOrder.append(ShotlistItemRef(kind: .sceneDivider, id: divider.id))
 
@@ -127,6 +154,11 @@ struct ScriptSyncService {
                 if let divider = project.sceneDivider(with: itemRef.id) {
                     if !lines.isEmpty { lines.append("") }
                     lines.append("### \(divider.title)")
+                    let notes = divider.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !notes.isEmpty {
+                        lines.append("")
+                        lines.append(notes)
+                    }
                     lines.append("")
                 }
             case .shot:

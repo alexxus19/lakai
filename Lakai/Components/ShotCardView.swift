@@ -65,18 +65,102 @@ struct RightClickCaptureView: NSViewRepresentable {
         }
 
         override func rightMouseDown(with event: NSEvent) {
-            let point = convert(event.locationInWindow, from: nil)
-            onRightClick?(point)
+            // Pass window coordinates so callers can correctly position menus regardless of scroll offset
+            onRightClick?(event.locationInWindow)
         }
 
         override func mouseDown(with event: NSEvent) {
             if event.modifierFlags.contains(.control) {
-                let point = convert(event.locationInWindow, from: nil)
-                onRightClick?(point)
+                onRightClick?(event.locationInWindow)
                 return
             }
 
             super.mouseDown(with: event)
+        }
+    }
+}
+
+// Captures plain left-click and Shift+left-click on the card background.
+// Returns (isShift: Bool) to the callback.
+struct CardTapCaptureView: NSViewRepresentable {
+    let onTap: (Bool) -> Void  // Bool = isShift
+
+    func makeCoordinator() -> Coordinator { Coordinator(onTap: onTap) }
+
+    func makeNSView(context: Context) -> NSView {
+        let v = CardTappableView()
+        v.onTap = context.coordinator.onTap
+        return v
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.onTap = onTap
+        (nsView as? CardTappableView)?.onTap = onTap
+    }
+
+    final class Coordinator: NSObject {
+        var onTap: (Bool) -> Void
+        init(onTap: @escaping (Bool) -> Void) { self.onTap = onTap }
+    }
+
+    final class CardTappableView: NSView {
+        var onTap: ((Bool) -> Void)?
+        private var pendingTapIsShift: Bool = false
+        private var mouseDownLocation: NSPoint = .zero
+
+        override var acceptsFirstResponder: Bool { false }
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            guard let event = NSApp.currentEvent, event.type == .leftMouseDown else { return nil }
+            let mods = event.modifierFlags.intersection([.shift, .command, .option, .control])
+            guard mods == [] || mods == .shift else { return nil }
+
+            // Shift+click: always capture for range selection.
+            if event.modifierFlags.contains(.shift) { return self }
+
+            // Plain click: walk the NSView tree WITHOUT calling hitTest (avoids SwiftUI
+            // recursive responder stack overflow). If an interactive control (text field,
+            // button, etc.) is under the cursor, pass the click through.
+            let windowPoint = convert(point, to: nil)
+            if windowTreeContainsInteractiveView(at: windowPoint) { return nil }
+            return self
+        }
+
+        // Record the press location and shift state, but do NOT fire onTap yet.
+        // Firing on mouseDown would clear selection before a drag can start.
+        override func mouseDown(with event: NSEvent) {
+            mouseDownLocation = event.locationInWindow
+            pendingTapIsShift = event.modifierFlags.contains(.shift)
+        }
+
+        // Fire onTap only on release. When a drag session starts, AppKit's drag loop
+        // consumes mouseUp, so this never fires for drags — selection is preserved.
+        override func mouseUp(with event: NSEvent) {
+            let dx = event.locationInWindow.x - mouseDownLocation.x
+            let dy = event.locationInWindow.y - mouseDownLocation.y
+            guard hypot(dx, dy) < 5 else { return }  // ignore if mouse moved significantly
+            onTap?(pendingTapIsShift)
+        }
+
+        // Traverses the NSView hierarchy to find any NSControl or NSTextView at the
+        // given window-coordinate point. Never calls hitTest to prevent recursion.
+        private func windowTreeContainsInteractiveView(at windowPoint: NSPoint) -> Bool {
+            guard let root = window?.contentView else { return false }
+            return searchView(root, at: windowPoint)
+        }
+
+        private func searchView(_ view: NSView, at windowPoint: NSPoint) -> Bool {
+            guard !view.isHidden, view !== self else { return false }
+            let local = view.convert(windowPoint, from: nil)
+            guard view.bounds.contains(local) else { return false }
+            // NSControl covers: NSTextField, NSButton, NSPopUpButton, NSSlider, etc.
+            // NSTextView (used by SwiftUI TextEditor) is not an NSControl, check separately.
+            if view is NSControl || view is NSTextView { return true }
+            for sub in view.subviews.reversed() {
+                if searchView(sub, at: windowPoint) { return true }
+            }
+            return false
         }
     }
 }
@@ -159,6 +243,8 @@ struct ShotCardView: View {
     let setupBinding: Binding<String>
     let durationBinding: Binding<String>
     let onContextMenuRequest: (UUID, CGPoint) -> Void
+    let onSelect: ((Bool) -> Void)?   // Bool = isShift; nil = no selection tracking
+    let isSelected: Bool
 
     @EnvironmentObject var themeManager: ThemeManager
     private var theme: ThemeDefinition { themeManager.current }
@@ -181,7 +267,7 @@ struct ShotCardView: View {
                     .foregroundStyle(theme.ink)
                     .scrollContentBackground(.hidden)
                     .padding(6)
-                    .frame(minHeight: 52, maxHeight: 64)
+                    .frame(minHeight: 52, maxHeight: mode == .shotlist ? .infinity : 64)
                     .background(theme.accentSoft)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .overlay(RoundedRectangle(cornerRadius: 12).stroke(theme.panelBorder, lineWidth: 1))
@@ -203,7 +289,7 @@ struct ShotCardView: View {
                     }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: mode == .shotlist ? 130 : .infinity, alignment: .leading)
 
             imagePanel
         }
@@ -217,10 +303,15 @@ struct ShotCardView: View {
                 onContextMenuRequest(id, $0)
             }
         }
-        .shadow(color: Color.black.opacity(0.035), radius: 12, x: 0, y: 6)
-        .onTapGesture {
-            NSApp.keyWindow?.makeFirstResponder(nil)
+        .overlay {
+            if let onSelect {
+                CardTapCaptureView { isShift in
+                    NSApp.keyWindow?.makeFirstResponder(nil)
+                    onSelect(isShift)
+                }
+            }
         }
+        .shadow(color: Color.black.opacity(0.035), radius: 12, x: 0, y: 6)
         .alert("Bestehendes Bild ersetzen?", isPresented: $isReplaceImageAlertPresented) {
             Button("Abbrechen", role: .cancel) {
                 pendingDroppedImageURL = nil
