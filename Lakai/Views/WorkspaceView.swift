@@ -322,7 +322,7 @@ struct WorkspaceView: View {
                                             onMove: { from, to in
                                                 appState.moveItemLive(in: .shotlist, from: from, to: to)
                                             },
-                                            selectedIDs: selectedShotlistIDs,
+                                            selectedIDsProvider: { selectedShotlistIDs },
                                             onMoveMulti: { anchor in
                                                 appState.moveMultipleItemsLive(in: .shotlist, draggedID: draggedShotID ?? itemRef.id, selectedIDs: selectedShotlistIDs, toAfterID: anchor)
                                             }
@@ -400,7 +400,7 @@ struct WorkspaceView: View {
                                             onMove: { from, to in
                                                 appState.moveItemLive(in: .shotlist, from: from, to: to)
                                             },
-                                            selectedIDs: selectedShotlistIDs,
+                                            selectedIDsProvider: { selectedShotlistIDs },
                                             onMoveMulti: { anchor in
                                                 appState.moveMultipleItemsLive(in: .shotlist, draggedID: draggedShotID ?? shot.id, selectedIDs: selectedShotlistIDs, toAfterID: anchor)
                                             }
@@ -411,8 +411,10 @@ struct WorkspaceView: View {
                                         if isMultiSelected {
                                             RoundedRectangle(cornerRadius: 18)
                                                 .fill(theme.accent.opacity(0.08))
+                                                .allowsHitTesting(false)
                                             RoundedRectangle(cornerRadius: 18)
                                                 .strokeBorder(theme.accent, lineWidth: 2.5)
+                                                .allowsHitTesting(false)
                                         }
                                     }
                                 }
@@ -921,7 +923,7 @@ struct WorkspaceView: View {
                     onMove: { from, to in
                         appState.moveItemLive(in: .schedule, from: from, to: to)
                     },
-                    selectedIDs: selectedScheduleIDs,
+                    selectedIDsProvider: { selectedScheduleIDs },
                     onMoveMulti: { anchor in
                         appState.moveMultipleItemsLive(in: .schedule, draggedID: draggedScheduleBlockID ?? firstBlockID, selectedIDs: selectedScheduleIDs, toAfterID: anchor)
                     }
@@ -1173,7 +1175,7 @@ struct WorkspaceView: View {
                 onMove: { from, to in
                     appState.moveItemLive(in: .schedule, from: from, to: to)
                 },
-                selectedIDs: selectedScheduleIDs,
+                selectedIDsProvider: { selectedScheduleIDs },
                 onMoveMulti: { anchor in
                     appState.moveMultipleItemsLive(in: .schedule, draggedID: draggedScheduleBlockID ?? entry.id, selectedIDs: selectedScheduleIDs, toAfterID: anchor)
                 }
@@ -1185,9 +1187,11 @@ struct WorkspaceView: View {
                 RoundedRectangle(cornerRadius: 18)
                     .fill(theme.accent.opacity(0.08))
                     .padding(.leading, 93)
+                    .allowsHitTesting(false)
                 RoundedRectangle(cornerRadius: 18)
                     .strokeBorder(theme.accent, lineWidth: 2.5)
                     .padding(.leading, 93)
+                    .allowsHitTesting(false)
             }
         }
     }
@@ -1504,7 +1508,7 @@ struct WorkspaceView: View {
                 onMove: { from, to in
                     appState.moveItemLive(in: .schedule, from: from, to: to)
                 },
-                selectedIDs: selectedScheduleIDs,
+                selectedIDsProvider: { selectedScheduleIDs },
                 onMoveMulti: { anchor in
                     appState.moveMultipleItemsLive(in: .schedule, draggedID: draggedScheduleBlockID ?? block.id, selectedIDs: selectedScheduleIDs, toAfterID: anchor)
                 }
@@ -1679,7 +1683,7 @@ struct WorkspaceView: View {
                 onMove: { from, to in
                     appState.moveItemLive(in: .schedule, from: from, to: to)
                 },
-                selectedIDs: selectedScheduleIDs,
+                selectedIDsProvider: { selectedScheduleIDs },
                 onMoveMulti: { anchor in
                     appState.moveMultipleItemsLive(in: .schedule, draggedID: draggedScheduleBlockID ?? block.id, selectedIDs: selectedScheduleIDs, toAfterID: anchor)
                 }
@@ -1903,7 +1907,7 @@ private struct ReorderDropDelegate: DropDelegate {
     @Binding var draggedID: UUID?
     let insertAfterTarget: Bool
     let onMove: (Int, Int) -> Void
-    let selectedIDs: Set<UUID>
+    let selectedIDsProvider: () -> Set<UUID>
     let onMoveMulti: (UUID) -> Void  // called with anchor (hovered) ID when multi-move
 
     func dropEntered(info: DropInfo) {
@@ -1912,12 +1916,20 @@ private struct ReorderDropDelegate: DropDelegate {
             return
         }
 
+        let selectedIDs = selectedIDsProvider()
+
+        NSLog("[Drag] dropEntered itemID=%@ draggedID=%@ selectedCount=%d containsDragged=%d", itemID.uuidString, draggedID.uuidString, selectedIDs.count, selectedIDs.contains(draggedID) ? 1 : 0)
+
         // Multi-select move: move all selected items as a group anchored at hovered target.
         // Guard: skip if the hovered target is itself part of the selection — the anchor must
         // survive the group-removal step in moveMultipleItems, otherwise the group gets
         // appended to the end of the list.
         if selectedIDs.count > 1 && selectedIDs.contains(draggedID) {
-            guard !selectedIDs.contains(itemID) else { return }
+            guard !selectedIDs.contains(itemID) else {
+                NSLog("[Drag] skip: itemID=%@ is in selection", itemID.uuidString)
+                return
+            }
+            NSLog("[Drag] multi-move to anchor=%@", itemID.uuidString)
             withAnimation(.interactiveSpring(response: 0.22, dampingFraction: 0.88)) {
                 onMoveMulti(itemID)
             }
@@ -1953,6 +1965,13 @@ private struct ReorderDropDelegate: DropDelegate {
     }
 
     func performDrop(info: DropInfo) -> Bool {
+        let selectedIDs = selectedIDsProvider()
+        NSLog("[Drag] performDrop itemID=%@ draggedID=%@ selectedCount=%d", itemID.uuidString, (draggedID?.uuidString ?? "nil"), selectedIDs.count)
+        // Ensure final multi-select position is committed even if dropEntered missed it.
+        if let dID = draggedID, selectedIDs.count > 1, selectedIDs.contains(dID), !selectedIDs.contains(itemID) {
+            NSLog("[Drag] performDrop: triggering onMoveMulti anchor=%@", itemID.uuidString)
+            onMoveMulti(itemID)
+        }
         draggedID = nil
         return true
     }
