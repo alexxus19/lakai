@@ -2,6 +2,27 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// Private drag UTType so the UUID payload is never treated as plain text
+/// and cannot be accidentally pasted into focused text fields.
+private let lakaiReorderUTType = UTType(exportedAs: "com.lakai.reorder")
+
+/// Creates a drag provider carrying a UUID under the private reorder UTType.
+/// Also resigns the active first responder so focused text fields don't receive
+/// the UUID string as a keyboard input event during drag initiation.
+private func makeDragProvider(id: UUID) -> NSItemProvider {
+    NSApp.keyWindow?.makeFirstResponder(nil)
+    let provider = NSItemProvider()
+    let data = id.uuidString.data(using: .utf8)
+    provider.registerDataRepresentation(
+        forTypeIdentifier: lakaiReorderUTType.identifier,
+        visibility: .all
+    ) { completion in
+        completion(data, nil)
+        return nil
+    }
+    return provider
+}
+
 private struct ShotCardFramePreferenceKey: PreferenceKey {
     static var defaultValue: [UUID: CGRect] = [:]
 
@@ -308,12 +329,12 @@ struct WorkspaceView: View {
                                     .zIndex(draggedShotID == itemRef.id ? 2 : 0)
                                     .onDrag {
                                         draggedShotID = itemRef.id
-                                        return NSItemProvider(object: itemRef.id.uuidString as NSString)
+                                        return makeDragProvider(id: itemRef.id)
                                     } preview: {
                                         dragPreviewPlaceholder
                                     }
                                     .onDrop(
-                                        of: [UTType.text],
+                                        of: [lakaiReorderUTType],
                                         delegate: ReorderDropDelegate(
                                             itemID: itemRef.id,
                                             orderedIDsProvider: { appState.activeProject?.shotlistItemOrder.map(\.id) ?? [] },
@@ -386,12 +407,12 @@ struct WorkspaceView: View {
                                     .zIndex((draggedShotID == shot.id || (draggedShotID != nil && selectedShotlistIDs.count > 1 && selectedShotlistIDs.contains(shot.id))) ? 2 : 0)
                                     .onDrag {
                                         draggedShotID = shot.id
-                                        return NSItemProvider(object: shot.id.uuidString as NSString)
+                                        return makeDragProvider(id: shot.id)
                                     } preview: {
                                         dragPreviewPlaceholder
                                     }
                                     .onDrop(
-                                        of: [UTType.text],
+                                        of: [lakaiReorderUTType],
                                         delegate: ReorderDropDelegate(
                                             itemID: shot.id,
                                             orderedIDsProvider: { appState.activeProject?.shotlistItemOrder.map(\.id) ?? [] },
@@ -463,7 +484,7 @@ struct WorkspaceView: View {
         .onPreferenceChange(SceneDividerFramePreferenceKey.self) { frames in
             sceneDividerFrames = frames
         }
-        .onDrop(of: [UTType.text], isTargeted: nil) { _ in
+        .onDrop(of: [lakaiReorderUTType], isTargeted: nil) { _ in
             resetDragState()
             closeShotCardMenu()
             closeDividerMenu()
@@ -874,7 +895,7 @@ struct WorkspaceView: View {
                 dismissActiveInput()
             }
         }
-        .onDrop(of: [UTType.text], isTargeted: nil) { _ in
+        .onDrop(of: [lakaiReorderUTType], isTargeted: nil) { _ in
             resetDragState()
             return true
         }
@@ -914,7 +935,7 @@ struct WorkspaceView: View {
     private func scheduleTopDropZone(firstBlockID: UUID) -> some View {
         dropGapView
             .onDrop(
-                of: [UTType.text],
+                of: [lakaiReorderUTType],
                 delegate: ReorderDropDelegate(
                     itemID: firstBlockID,
                     orderedIDsProvider: { appState.activeProject?.orderedScheduleBlocks.map(\.id) ?? [] },
@@ -1161,12 +1182,12 @@ struct WorkspaceView: View {
         .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.88), value: draggedScheduleBlockID)
         .onDrag {
             draggedScheduleBlockID = entry.id
-            return NSItemProvider(object: entry.id.uuidString as NSString)
+            return makeDragProvider(id: entry.id)
         } preview: {
             dragPreviewPlaceholder
         }
         .onDrop(
-            of: [UTType.text],
+            of: [lakaiReorderUTType],
             delegate: ReorderDropDelegate(
                 itemID: entry.id,
                 orderedIDsProvider: { appState.activeProject?.orderedScheduleBlocks.map(\.id) ?? [] },
@@ -1494,12 +1515,12 @@ struct WorkspaceView: View {
         .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.88), value: draggedScheduleBlockID)
         .onDrag {
             draggedScheduleBlockID = block.id
-            return NSItemProvider(object: block.id.uuidString as NSString)
+            return makeDragProvider(id: block.id)
         } preview: {
             dragPreviewPlaceholder
         }
         .onDrop(
-            of: [UTType.text],
+            of: [lakaiReorderUTType],
             delegate: ReorderDropDelegate(
                 itemID: block.id,
                 orderedIDsProvider: { appState.activeProject?.orderedScheduleBlocks.map(\.id) ?? [] },
@@ -1669,12 +1690,12 @@ struct WorkspaceView: View {
         .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.88), value: draggedScheduleBlockID)
         .onDrag {
             draggedScheduleBlockID = block.id
-            return NSItemProvider(object: block.id.uuidString as NSString)
+            return makeDragProvider(id: block.id)
         } preview: {
             dragPreviewPlaceholder
         }
         .onDrop(
-            of: [UTType.text],
+            of: [lakaiReorderUTType],
             delegate: ReorderDropDelegate(
                 itemID: block.id,
                 orderedIDsProvider: { appState.activeProject?.orderedScheduleBlocks.map(\.id) ?? [] },

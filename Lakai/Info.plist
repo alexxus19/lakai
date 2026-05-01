@@ -32,6 +32,16 @@
 	<array>
 		<dict>
 			<key>UTTypeIdentifier</key>
+			<string>com.lakai.reorder</string>
+			<key>UTTypeDescription</key>
+			<string>Lakai Reorder Token</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
 			<string>com.lakai.archive</string>
 			<key>UTTypeDescription</key>
 			<string>Lakai Projektarchiv</string>
